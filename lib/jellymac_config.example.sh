@@ -78,14 +78,6 @@ MEDIA_TAG_BLACKLIST="1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|
 # [Example] "1080p|720p|WEB-DL" would remove these quality tags from filenames
 
 # --- Transfer Settings ---
-# [Post-Transfer Deletion] - Whether to delete source files after successful transfer
-PERFORM_POST_TRANSFER_DELETE="true"  # [Values: true, false] [Default: true]
-                                    # Set to false to keep files in drop folder after processing
-
-# [Delete Delay] - Time to wait before deleting source files
-POST_TRANSFER_DELETE_DELAY=30  # [Units: seconds] [Range: 0-3600] [Default: 30]
-                              # Higher values give more time to verify successful transfer
-
 # [Transfer Timeout] - Maximum time for rsync operations
 RSYNC_TIMEOUT=300  # [Units: seconds] [Range: 30-1800] [Default: 300]
                   # Increase for very large files or slow network transfers
