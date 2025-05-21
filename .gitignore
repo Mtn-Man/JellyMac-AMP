@@ -1,0 +1,21 @@
+ # Ignore user-specific configuration
+    lib/jellymac_config.sh
+
+    # Ignore log files and directory
+    logs/
+    *.log
+
+    # Ignore state directory and its contents
+    .state/
+
+    # Ignore macOS system files
+    .DS_Store
+    ._*
+
+    # Ignore temporary files created by scripts (if any consistent patterns)
+    # Example:
+    # *.tmp
+    # .*.tmp
+
+    # Ignore backups of config file
+    lib/jellymac_config.sh.bak

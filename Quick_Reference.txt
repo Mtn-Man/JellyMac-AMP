@@ -1,0 +1,48 @@
+=================================================================
+               JellyMac AMP Quick Reference
+=================================================================
+
+COMMON TASKS
+-----------
+1. Start JellyMac:
+   Open Terminal, type:
+   cd ~/JellyMac_AMP
+   ./jellymac.sh
+
+2. Stop JellyMac:
+   Press Ctrl+C in the Terminal window
+
+3. Add Media:
+   * Movies/Shows: Drop files in DROP_FOLDER
+   * YouTube: Copy video URL
+   * Torrents: Copy magnet link
+
+4. Check Progress:
+   * Watch Terminal window
+   * Check notification center
+   * Look in destination folders
+
+USEFUL COMMANDS
+--------------
+* Update yt-dlp:
+  brew upgrade yt-dlp
+
+* Check Transmission:
+  transmission-remote --list
+
+* View Logs:
+  cd ~/JellyMac_AMP/logs
+  cat jellymac_automator_log_YYYY-MM-DD.log
+
+COMMON FIXES
+-----------
+* Permission denied:
+  chmod 755 [folder-name]
+
+* Network share issues:
+  Finder > Go > Connect to Server...
+  
+* Missing dependencies:
+  Edit lib/jellymac_config.sh and set:
+  AUTO_INSTALL_DEPENDENCIES="true"
+  (Requires Homebrew installed)
