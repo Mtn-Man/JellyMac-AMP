@@ -56,6 +56,8 @@ LOCAL_DIR_YOUTUBE="/path/to/local/youtube_downloads"  # [Required if YouTube pro
 # [Error Directory] - Storage for items that couldn't be processed
 ERROR_DIR="${JELLYMAC_PROJECT_ROOT}/_error_quarantine_files"  # [Required] Created automatically if needed
 
+# [State Directory] - Storage for lock files and temporary state
+STATE_DIR="${JELLYMAC_PROJECT_ROOT}/.state"  # [Required] Used for process coordination and locking
 #==============================================================================
 # MEDIA PROCESSING SETTINGS
 #==============================================================================
