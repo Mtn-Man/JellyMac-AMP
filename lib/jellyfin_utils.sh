@@ -6,9 +6,18 @@
 # Assumes JELLYFIN_SERVER, JELLYFIN_API_KEY are available from sourced config.
 # Assumes 'curl' is available (checked by health check in main script).
 
-# Trigger Jellyfin library scan function
-# Arguments:
-#   $1: Item category (e.g., "Movies", "Shows", "YouTube") for logging
+#==============================================================================
+# JELLYFIN API INTEGRATION FUNCTIONS
+#==============================================================================
+
+# Function: trigger_jellyfin_library_scan
+# Description: Triggers a library refresh scan on the configured Jellyfin server
+# Parameters:
+#   $1 - Item category (e.g., "Movies", "Shows", "YouTube") for logging purposes
+# Returns:
+#   0 - Library scan triggered successfully
+#   1 - Failure (missing config, network error, or HTTP error response)
+# Side Effects: Makes HTTP POST request to Jellyfin API, logs results
 trigger_jellyfin_library_scan() {
     local item_category_for_log="$1"
     local http_status_code

@@ -13,27 +13,39 @@ SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$(cd "${SCRIPT_DIR}/../lib" && pwd)" # Assumes lib is one level up from bin
 
-# --- Temp File Management for this script ---
-# This script will manage its own temporary files.
+#==============================================================================
+# TEMPORARY FILE MANAGEMENT
+#==============================================================================
+# Global array to track temporary files created during script execution
 _SCRIPT_TEMP_FILES_TO_CLEAN=()
+
+# Function: _cleanup_script_temp_files
+# Description: Cleans up temporary files created during script execution
+# Parameters: None
+# Returns: None
+# Side Effects: Removes all tracked temporary files and clears the tracking array
 _cleanup_script_temp_files() {
     # shellcheck disable=SC2128 # We want to check array length
+    # shellcheck disable=SC2317 
     if [[ ${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]} -gt 0 ]]; then
-        # Use a generic log prefix for this trap as specific logging might not be fully set up
         echo "INFO: $(date '+%Y-%m-%d %H:%M:%S') - [${SCRIPT_NAME}_TRAP] Cleaning up temporary files (${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]})..." >&2
-        local temp_file_to_clean # Correctly local to this function, assigned by the 'for' loop
+        local temp_file_to_clean
         for temp_file_to_clean in "${_SCRIPT_TEMP_FILES_TO_CLEAN[@]}"; do
             if [[ -n "$temp_file_to_clean" && -e "$temp_file_to_clean" ]]; then
-                rm -f "$temp_file_to_clean" # Use -f for force, no error if already gone
+                rm -f "$temp_file_to_clean"
                 echo "INFO: $(date '+%Y-%m-%d %H:%M:%S') - [${SCRIPT_NAME}_TRAP] Removed '$temp_file_to_clean'" >&2
             fi
         done
     fi
+    # shellcheck disable=SC2317
     _SCRIPT_TEMP_FILES_TO_CLEAN=()
 }
 # Trap for this script's specific temp files.
 trap _cleanup_script_temp_files EXIT SIGINT SIGTERM
 
+#==============================================================================
+# LIBRARY SOURCING AND CONFIGURATION
+#==============================================================================
 
 # --- Source Libraries ---
 # Source order matters: logging -> config -> common -> others
@@ -52,6 +64,19 @@ log_warn() { _log_event_if_level_met "$LOG_LEVEL_WARN" "⚠️ WARN: $LOG_PREFIX
 # Use log_error_event from logging_utils.sh directly for errors that should exit this script
 log_debug() { _log_event_if_level_met "$LOG_LEVEL_DEBUG" "🐛 DEBUG: $LOG_PREFIX_SCRIPT" "$*"; }
 
+#==============================================================================
+# MAGNET LINK PROCESSING FUNCTIONS
+#==============================================================================
+
+# Function: main
+# Description: Main entry point for magnet link processing - validates magnet URL format,
+#              connects to Transmission daemon, and adds magnet link to download queue
+# Parameters:
+#   $1 - Magnet URL to process (must start with magnet:?xt=urn:btih:)
+# Returns: 
+#   0 - Success (link added or duplicate handled)
+#   1 - Failure (invalid format, connection error, or processing error)
+# Side Effects: Adds magnet link to Transmission, records history, sends notifications
 
 # --- Argument Validation ---
 if [[ $# -ne 1 ]]; then
@@ -87,13 +112,15 @@ log_info "Attempting to add magnet link to Transmission server at $TRANSMISSION_
 
 # Use an array for transmission-remote arguments for safety with special characters
 declare -a transmission_remote_args=() 
-transmission_remote_args+=("$TRANSMISSION_REMOTE_HOST") # Server address:port
+transmission_remote_args[${#transmission_remote_args[@]}]="$TRANSMISSION_REMOTE_HOST" # Server address:port
 
 if [[ -n "$TRANSMISSION_REMOTE_AUTH" ]]; then # Expected format: "username:password", from combined.conf.sh
-    transmission_remote_args+=("--auth" "$TRANSMISSION_REMOTE_AUTH")
+    transmission_remote_args[${#transmission_remote_args[@]}]="--auth"
+    transmission_remote_args[${#transmission_remote_args[@]}]="$TRANSMISSION_REMOTE_AUTH"
 fi
 
-transmission_remote_args+=("--add" "$MAGNET_URL") # The magnet link itself
+transmission_remote_args[${#transmission_remote_args[@]}]="--add"
+transmission_remote_args[${#transmission_remote_args[@]}]="$MAGNET_URL" # The magnet link itself
 # Crucially, ensure Transmission client is configured to download completed files to DROP_FOLDER.
 # This script does not specify a download directory, relying on Transmission's global settings.
 
@@ -102,10 +129,10 @@ log_debug "Executing command: $TRANSMISSION_CLI_EXECUTABLE ${transmission_remote
 # Capture stdout and stderr for better error reporting and success message parsing
 # These temp files are local to this script execution.
 TR_STDOUT_LOG_FILE=$(mktemp "${SCRIPT_DIR}/.tr_stdout.XXXXXX") # SCRIPT_DIR is bin/
-_SCRIPT_TEMP_FILES_TO_CLEAN+=("$TR_STDOUT_LOG_FILE")
+_SCRIPT_TEMP_FILES_TO_CLEAN[${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]}]="$TR_STDOUT_LOG_FILE"
 
 TR_STDERR_LOG_FILE=$(mktemp "${SCRIPT_DIR}/.tr_stderr.XXXXXX")
-_SCRIPT_TEMP_FILES_TO_CLEAN+=("$TR_STDERR_LOG_FILE")
+_SCRIPT_TEMP_FILES_TO_CLEAN[${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]}]="$TR_STDERR_LOG_FILE"
 
 set +e # Temporarily disable exit on error to capture return code and output
 "$TRANSMISSION_CLI_EXECUTABLE" "${transmission_remote_args[@]}" > "$TR_STDOUT_LOG_FILE" 2> "$TR_STDERR_LOG_FILE"

@@ -9,11 +9,12 @@
 # - Watches DROP_FOLDER for new media files/folders
 # - Launches appropriate processing scripts for each media type
 # - Manages concurrent processing of multiple media items if desired
-# - Can fully automate the media aquisition pipeline for Jellyfin users
+# - Can fully automate the media aquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: 0.1.1
-# Last Updated: 2025-05-20
+# Version: 0.1.2
+# Last Updated: 2025-05-23
+# License: MIT Open Source
 
 # --- Set Terminal Title ---
 printf "\033]0;JellyMac AMP\007"
@@ -47,7 +48,7 @@ STATE_DIR="${SCRIPT_DIR}/.state" # For lock files, temporary scan files etc.
 source "${SCRIPT_DIR}/lib/logging_utils.sh"
 
 # 2. Configuration (defines LOG_LEVEL, paths, features)
-# Replace 'jellymac_config.sh' with your actual new config filename if different
+# Replace 'jellymac_config.example.sh' with your actual new config filename if different
 CONFIG_FILE_NAME="jellymac_config.sh" # Or "jellymac_config.sh" if you didn't rename it
 if [[ -f "${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}" ]]; then
     # shellcheck source=lib/jellymac_config.sh
@@ -316,8 +317,11 @@ graceful_shutdown_and_cleanup() {
     local old_ifs="$IFS"; IFS='|'
     local script_name_killed 
     set -f 
+    # Bash 3.2 compatible: Use explicit string replacement then array assignment
+    local processor_string_modified
+    processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
     # shellcheck disable=SC2206 
-    local p_info_array=(${_ACTIVE_PROCESSOR_INFO_STRING//|||/|})
+    local p_info_array=($processor_string_modified)
     set +f 
     IFS="$old_ifs"
     local entry_count=${#p_info_array[@]}
@@ -381,8 +385,11 @@ manage_active_processors() {
         local script_basename; script_basename=$(basename "$script_full_path")
 
         if ps -p "$pid" > /dev/null; then 
-            if [[ -n "$still_running_string" ]]; then still_running_string+="|||"; fi 
-            still_running_string+="${pid}|||${script_full_path}|||${item_identifier}|||${ts_launch}"
+            # Bash 3.2 compatible string concatenation
+            if [[ -n "$still_running_string" ]]; then 
+                still_running_string="${still_running_string}|||"
+            fi 
+            still_running_string="${still_running_string}${pid}|||${script_full_path}|||${item_identifier}|||${ts_launch}"
         else 
             local exit_status=255 
             if wait "$pid" &>/dev/null; then 
@@ -392,23 +399,6 @@ manage_active_processors() {
             fi
             log_info "✅ Processor PID $pid ($script_basename for '${item_identifier:0:70}...') completed. Exit status: $exit_status."
             
-            if [[ "$script_full_path" == "$PROCESS_MEDIA_ITEM_SCRIPT" ]]; then
-                if [[ "$exit_status" -eq 0 ]]; then 
-                    if [[ -n "$item_identifier" && -e "$item_identifier" ]]; then 
-                        log_info "🗑️ Deleting successfully processed/quarantined item from DROP_FOLDER: '$item_identifier'"
-                        if rm -rf "$item_identifier"; then
-                            log_info "✅ Successfully deleted '$item_identifier' from DROP_FOLDER."
-                            record_transfer_to_history "DELETED from DROP_FOLDER: $(basename "$item_identifier") (Processed by $script_basename, status $exit_status)"
-                        else
-                            log_error "❌ Failed to delete '$item_identifier' from DROP_FOLDER. Manual cleanup may be required." 
-                        fi
-                    else
-                        log_warn "Could not delete '$item_identifier' from DROP_FOLDER: path invalid or item already gone."
-                    fi
-                else 
-                    log_warn "Processor PID $pid ($script_basename for '$item_identifier') failed (status $exit_status). Item remains in DROP_FOLDER."
-                fi
-            fi
         fi
     done
     _ACTIVE_PROCESSOR_INFO_STRING="$still_running_string" 
@@ -427,8 +417,11 @@ is_item_being_processed() {
 
     local old_ifs="$IFS"; IFS='|'
     set -f 
+    # Bash 3.2 compatible: Use explicit string replacement then array assignment
+    local processor_string_modified
+    processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
     # shellcheck disable=SC2206 
-    local p_info_array=(${_ACTIVE_PROCESSOR_INFO_STRING//|||/|})
+    local p_info_array=($processor_string_modified)
     set +f 
     IFS="$old_ifs"
     local entry_count=${#p_info_array[@]}
@@ -560,8 +553,11 @@ process_drop_folder() {
 
         local old_ifs="$IFS"; IFS='|'
         set -f 
+        # Bash 3.2 compatible: Use explicit string replacement then array assignment
+        local processor_string_modified
+        processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
         # shellcheck disable=SC2206 
-        local p_array_temp=(${_ACTIVE_PROCESSOR_INFO_STRING//|||/|})
+        local p_array_temp=($processor_string_modified)
         set +f 
         IFS="$old_ifs"
         local p_count=$(( ${#p_array_temp[@]} / 4 )) 
@@ -582,8 +578,11 @@ process_drop_folder() {
             "$PROCESS_MEDIA_ITEM_SCRIPT" "$item_type_for_processor" "$item_path" "$category_hint_for_processor" & 
             local child_pid=$! 
 
-            if [[ -n "$_ACTIVE_PROCESSOR_INFO_STRING" ]]; then _ACTIVE_PROCESSOR_INFO_STRING+="|||"; fi
-            _ACTIVE_PROCESSOR_INFO_STRING+="${child_pid}|||${PROCESS_MEDIA_ITEM_SCRIPT}|||${item_path}|||${ts_launch}"
+            # Bash 3.2 compatible string concatenation
+            if [[ -n "$_ACTIVE_PROCESSOR_INFO_STRING" ]]; then 
+                _ACTIVE_PROCESSOR_INFO_STRING="${_ACTIVE_PROCESSOR_INFO_STRING}|||"
+            fi
+            _ACTIVE_PROCESSOR_INFO_STRING="${_ACTIVE_PROCESSOR_INFO_STRING}${child_pid}|||${PROCESS_MEDIA_ITEM_SCRIPT}|||${item_path}|||${ts_launch}"
             
             log_info "🚀 Launched Media Processor (PID $child_pid). Active processors: $((p_count+1))."
             send_desktop_notification "JellyMac: Processing" "Item: ${item_basename:0:60}..."
@@ -615,10 +614,10 @@ if ! validate_config_filepaths; then
 fi
 
 # Acquire Single Instance Lock (AFTER health checks)
-_acquire_lock # Ensure only one instance runs
+_acquire_lock # Ensure only one instance of JellyMac runs at a time
 
 log_info "🚀 JellyMac AMP Starting..."
-log_info "   Version: 0.1.1 ($(date '+%Y-%m-%d %H:%M:%S'))"  
+log_info "   Version: 0.1.2 ($(date '+%Y-%m-%d %H:%M:%S'))"  
 log_info "   Project Root: $JELLYMAC_PROJECT_ROOT"
 log_info "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
@@ -633,32 +632,7 @@ else
     log_info "✅ State directory OK: $STATE_DIR"
 fi
 
-# pbpaste check (now primarily handled by doctor_utils.sh, this is for PBPASTE_CMD var)
-if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" || "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
-    if command -v pbpaste &>/dev/null; then 
-        PBPASTE_CMD="pbpaste"; 
-        log_info "✅ 'pbpaste' is available for clipboard monitoring."
-    else 
-        PBPASTE_CMD=""; 
-        # Warning about pbpaste missing is handled by doctor_utils.sh
-        # Here we just ensure clipboard features are effectively disabled if pbpaste is not usable.
-        ENABLE_CLIPBOARD_YOUTUBE="false"
-        ENABLE_CLIPBOARD_MAGNET="false"
-        log_info "Clipboard monitoring features disabled as 'pbpaste' is unavailable."
-    fi
-fi
 
-# macOS specific command path initializations (caffeinate, osascript)
-# These are checked by doctor_utils.sh; here we just set the command path variables.
-if [[ "$(uname)" == "Darwin" ]]; then
-    if command -v caffeinate &>/dev/null; then CAFFEINATE_CMD_PATH="caffeinate"; 
-    else CAFFEINATE_CMD_PATH=""; fi # doctor_utils warns if missing
-    
-    if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" == "true" ]]; then
-        if command -v osascript &>/dev/null; then _OSASCRIPT_CMD="osascript"; 
-        else _OSASCRIPT_CMD="NOT_FOUND"; ENABLE_DESKTOP_NOTIFICATIONS="false"; fi # doctor_utils warns if missing
-    fi
-fi
 
 log_info "Verifying essential directories..."
 declare -a critical_dest_paths_to_check=("${DEST_DIR_MOVIES:-}" "${DEST_DIR_SHOWS:-}" "${DEST_DIR_YOUTUBE:-}")
@@ -707,6 +681,29 @@ if [[ -n "$HISTORY_FILE" ]]; then
     if [[ ! -f "$HISTORY_FILE" ]]; then log_info "📝 History file '$HISTORY_FILE' will be created on first use.";
     else log_info "📝 Using history file: $HISTORY_FILE"; fi
 else log_warn "HISTORY_FILE not configured. No history will be recorded."; fi
+
+# --- Store command paths as needed for runtime ---
+# After doctor_utils.sh has verified command availability, simply assign paths
+
+# Set pbpaste path (it must exist if clipboard features are enabled, otherwise doctor_utils would have failed)
+if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" || "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
+    PBPASTE_CMD="pbpaste" 
+fi
+
+# macOS specific command path initializations
+if [[ "$(uname)" == "Darwin" ]]; then
+    # If we reached here with these features enabled, doctor_utils.sh already verified the commands exist
+    CAFFEINATE_CMD_PATH="caffeinate"
+    
+    if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" == "true" ]]; then
+        _OSASCRIPT_CMD="osascript"
+    fi
+fi
+
+# Directory checks are already done by validate_config_filepaths() in doctor_utils.sh
+# We can remove redundant directory checks here
+
+log_info "✅ All critical checks passed and paths validated."
 
 log_info "--- JellyMac AMP Configuration Summary (v0.1.1) ---"
 log_info "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A} (Checks: ${STABLE_CHECKS_DROP_FOLDER:-3}, Interval: ${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}s)"

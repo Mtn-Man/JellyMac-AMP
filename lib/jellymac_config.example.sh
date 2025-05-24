@@ -28,6 +28,10 @@ MAIN_LOOP_SLEEP_INTERVAL=5  # [Units: seconds] [Range: 1-60] [Default: 5]
 # [Directory Creation] - Controls if missing directories should be created automatically
 AUTO_CREATE_MISSING_DIRS="true"  # [Values: true, false] [Default: true]
 
+# [Concurrent Processing] - Maximum number of simultaneous media processors
+MAX_CONCURRENT_PROCESSORS="2"  # [Range: 1-5] [Default: 2]
+                               # Controls how many files can be processed simultaneously
+
 #==============================================================================
 # MEDIA PATHS
 #==============================================================================
@@ -156,9 +160,14 @@ ENABLE_CLIPBOARD_YOUTUBE="true"  # [Values: true, false] [Default: true]
 DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"  # [Required]
                                                                              # Path must be writable
 
-# [Cookies File] - Browser cookies for accessing restricted content
+# [Cookies Configuration for YouTube] - Enable/disable cookies support
+COOKIES_ENABLED="false"  # [Values: true, false] [Default: false]
+                        # Set to false to completely disable cookies for YouTube downloads
+                        # Helpful when experiencing SABR streaming issues
+
+# [Cookies file for YouTube.com] (only used when COOKIES_ENABLED=true)
 COOKIES_FILE="/path/to/your/cookies.txt"  # [Optional] Used for age-restricted or private videos
-                                       # Export from browser or create manually
+                                       # Export from browser or create manually using firefox cookies.txt export extension
 
 # --- Download Settings ---
 # [Format Selection] - Resolution and codec preferences

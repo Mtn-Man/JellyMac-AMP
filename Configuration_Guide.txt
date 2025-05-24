@@ -1,0 +1,502 @@
+================================================================= JellyMac AMP Configuration Guide
+This guide explains the settings available in the
+lib/jellymac_config.sh file. This file is crucial for
+customizing JellyMac AMP to your specific setup and
+preferences.
+
+To configure JellyMac AMP:
+
+Navigate to the lib directory within your JellyMac_AMP
+folder (e.g., cd ~/JellyMac_AMP/lib).
+
+If it doesn't already exist, copy the example
+configuration: cp jellymac_config.example.sh jellymac_config.sh
+
+Open jellymac_config.sh in a text editor (like nano
+or TextEdit) and modify the settings as described below.
+
+Save your changes and restart JellyMac AMP for them to
+take effect.
+
+General Tips for Configuration:
+
+Paths: Use full, absolute paths for all directory
+settings (e.g., /Users/yourname/Movies instead of
+~/Movies or Movies).
+
+Quotes: Keep values enclosed in double quotes ("value").
+This is important for paths or values that might contain
+spaces or special characters.
+
+Boolean Values: Settings expecting "true" or "false"
+should use these exact lowercase strings.
+
+                    CORE CONFIGURATION
+
+These settings control the general behavior of JellyMac AMP.
+
+JELLYMAC_PROJECT_ROOT
+Purpose: Automatically determines the project's main
+installation directory.
+How it works: Assumes jellymac_config.sh is in the
+lib subdirectory of the project root.
+Action: Usually, you do not need to change this.
+
+AUTO_INSTALL_DEPENDENCIES
+Purpose: Controls if JellyMac AMP should automatically
+try to install missing required tools (like yt-dlp,
+flock, transmission-cli) using Homebrew when it
+starts.
+Values:
+- "true": Enable automatic installation.
+- "false": Disable automatic installation (default).
+Note: Requires Homebrew to be installed on your Mac.
+If "false", you must install dependencies manually.
+
+MAIN_LOOP_SLEEP_INTERVAL
+Purpose: Sets how often (in seconds) the main JellyMac
+AMP script checks for new clipboard content and scans
+the drop folder.
+Units: Seconds
+Range: 1-60 (recommended)
+Default: 5
+Note: Lower values (e.g., 1-5) make the script more
+responsive but use slightly more CPU. Higher values
+(e.g., 10-30) are less responsive but lighter on CPU.
+
+AUTO_CREATE_MISSING_DIRS
+Purpose: Controls if JellyMac AMP should automatically
+create essential directories (like DROP_FOLDER,
+destination libraries, ERROR_DIR) if they don't
+exist when the script starts.
+Values:
+- "true": Enable automatic directory creation (default).
+- "false": Disable. The script will error and exit if
+configured paths are not found.
+
+                       MEDIA PATHS
+
+Define the source and destination locations for your media.
+These paths MUST be correctly set for JellyMac AMP to function.
+Ensure JellyMac AMP has read/write permissions for these
+locations.
+
+DROP_FOLDER
+Purpose: The main folder JellyMac AMP monitors for new
+media files or folders (e.g., completed torrents,
+manually dropped files).
+Required: Yes
+Example: "/Users/yourname/Downloads/MediaDrop"
+Note: This path must exist or be creatable if
+AUTO_CREATE_MISSING_DIRS is "true".
+
+DEST_DIR_MOVIES
+Purpose: The final root directory where processed movies
+will be organized. Each movie will typically get its
+own subfolder here.
+Required: Yes
+Example: "/Volumes/Media/Movies"
+Note: Must be writable by JellyMac AMP.
+
+DEST_DIR_SHOWS
+Purpose: The final root directory where processed TV shows
+will be organized. Shows are typically structured as
+ShowName/Season XX/episode_files.
+Required: Yes
+Example: "/Volumes/Media/TV Shows"
+Note: Must be writable by JellyMac AMP.
+
+DEST_DIR_YOUTUBE
+Purpose: The final destination for downloaded YouTube
+videos.
+Required: Yes, if ENABLE_CLIPBOARD_YOUTUBE is "true".
+Example: "/Volumes/Media/YouTube"
+Note: Must be writable. If YouTube processing is
+disabled, this path is not used.
+
+LOCAL_DIR_YOUTUBE
+Purpose: A temporary local directory on your Mac where
+YouTube videos are downloaded by yt-dlp before being
+moved to DEST_DIR_YOUTUBE.
+Required: Yes, if ENABLE_CLIPBOARD_YOUTUBE is "true".
+Example: "/Users/yourname/JellyMacTemp/YouTubeDownloads"
+Note: Ensure this location has enough free space for
+your largest expected YouTube downloads. This directory
+should ideally be on a fast local drive (like your Mac's
+internal SSD).
+
+ERROR_DIR
+Purpose: A directory where JellyMac AMP will move items
+that it fails to process correctly (quarantine). This
+helps keep your DROP_FOLDER clean.
+Required: Yes
+Default: "${JELLYMAC_PROJECT_ROOT}/_error_quarantine_files"
+(a folder named _error_quarantine_files inside your
+JellyMac_AMP project directory).
+Note: Created automatically if needed and
+AUTO_CREATE_MISSING_DIRS is "true".
+
+               MEDIA PROCESSING SETTINGS
+
+Control how media files are identified, cleaned, and handled.
+
+MAIN_MEDIA_EXTENSIONS
+Purpose: A list of file extensions that JellyMac AMP
+recognizes as primary video media files to be processed.
+Format: Array of strings, e.g., (".mkv" ".mp4")
+Default: Includes common video formats like ".mkv",
+".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts".
+Required: Yes. Ensure your common media file types are
+listed.
+
+ASSOCIATED_FILE_EXTENSIONS
+Purpose: A list of file extensions for files that should
+be processed alongside the main media file (e.g.,
+subtitles, NFO files). These files will be renamed to
+match the processed media file name and moved with it.
+Format: Array of strings, e.g., (".srt" ".nfo")
+Default: Includes common subtitle formats (".srt", ".sub",
+".ass", ".idx", ".vtt") and ".nfo" files.
+Optional: Yes. Add or remove extensions as needed.
+
+MEDIA_TAG_BLACKLIST
+Purpose: A list of tags (using regex patterns) to remove
+from filenames during the cleaning process. This helps
+create cleaner, more consistent names for your media
+server to parse.
+Format: Regex patterns separated by | (pipe), case
+insensitive.
+Example: "1080p|720p|WEB[- ]?DL|WEBRip"
+Default: A comprehensive list of common quality tags,
+codecs, and release group patterns.
+Note: Be careful when editing; incorrect regex can lead
+to unexpected or incomplete filename changes. Test changes
+on sample filenames if unsure.
+
+RSYNC_TIMEOUT
+Purpose: Maximum time (in seconds) to allow for rsync
+operations when moving files to their final destinations.
+Units: Seconds
+Range: 30-1800 (recommended)
+Default: 300 (5 minutes)
+Note: Increase this if you are transferring very large
+files (e.g., 4K remuxes) or if your destination is on a
+slow network share.
+
+STABLE_CHECKS_DROP_FOLDER
+Purpose: The number of consecutive checks (with no size
+or modification date changes) needed before a file or
+folder in the DROP_FOLDER is considered "stable" and
+ready for processing. This is crucial for preventing
+JellyMac AMP from trying to process incomplete downloads
+or transfers.
+Range: 1-10 (recommended)
+Default: 3
+Note: Higher values are safer but may introduce a slight
+delay before processing starts.
+
+STABLE_SLEEP_INTERVAL_DROP_FOLDER
+Purpose: The time (in seconds) to wait between each
+stability check for items in the DROP_FOLDER.
+Units: Seconds
+Range: 1-60 (recommended)
+Default: 10
+Impact: Total stability wait time = STABLE_CHECKS *
+STABLE_SLEEP_INTERVAL.
+
+                  JELLYFIN INTEGRATION
+
+Settings for connecting to your Jellyfin media server. If you
+don't use Jellyfin, or don't want automatic library scans,
+you can leave JELLYFIN_SERVER blank.
+
+JELLYFIN_SERVER
+Purpose: The full base URL of your Jellyfin server,
+including the protocol (http or https) and port.
+Format: http(s)://hostname_or_ip:port
+Example: "http://192.168.1.100:8096" or
+"https://mydomain.com/jellyfin"
+Note: Must be accessible from the Mac running
+JellyMac AMP. Leave blank to disable all Jellyfin
+integration features.
+
+JELLYFIN_API_KEY
+Purpose: Your API key for Jellyfin, allowing JellyMac AMP
+to trigger library scans.
+Required: Yes, if JELLYFIN_SERVER is set and you want
+library scans.
+How to get: In Jellyfin, go to Dashboard -> API Keys ->
+Click "+" to create a new key. Give it a name like
+"JellyMacAMP".
+Note: Keep this key secure.
+
+ENABLE_JELLYFIN_SCAN_MOVIES
+Purpose: Whether to trigger a Jellyfin library scan after
+successfully processing and moving movies.
+Values: "true" (default), "false"
+Prerequisite: JELLYFIN_SERVER and JELLYFIN_API_KEY
+must be set.
+
+ENABLE_JELLYFIN_SCAN_SHOWS
+Purpose: Whether to trigger a Jellyfin library scan after
+successfully processing and moving TV shows.
+Values: "true" (default), "false"
+Prerequisite: JELLYFIN_SERVER and JELLYFIN_API_KEY
+must be set.
+
+ENABLE_JELLYFIN_SCAN_YOUTUBE
+Purpose: Whether to trigger a Jellyfin library scan after
+successfully processing and moving YouTube videos.
+Values: "true" (default), "false"
+Prerequisite: JELLYFIN_SERVER and JELLYFIN_API_KEY
+must be set.
+
+                   TORRENT AUTOMATION
+
+Settings for automating torrent downloads with the Transmission
+BitTorrent client.
+
+ENABLE_TORRENT_AUTOMATION
+Purpose: Master switch to enable or disable all torrent
+automation features, including clipboard monitoring for
+magnet links and interaction with Transmission.
+Values: "true" (default), "false"
+
+ENABLE_CLIPBOARD_MAGNET
+Purpose: Specifically controls whether JellyMac AMP
+monitors the clipboard for magnet links to send to
+Transmission.
+Values: "true" (default), "false"
+Prerequisite: ENABLE_TORRENT_AUTOMATION must also be
+"true".
+
+TORRENT_CLIENT_CLI_PATH
+Purpose: The full path to the transmission-remote
+command-line tool, which JellyMac AMP uses to communicate
+with your Transmission daemon.
+Required: Yes, if ENABLE_TORRENT_AUTOMATION is "true".
+Default: "/opt/homebrew/bin/transmission-remote"
+(common Homebrew path for transmission-cli package).
+Note: Ensure transmission-cli is installed via
+Homebrew (brew install transmission-cli).
+
+TRANSMISSION_REMOTE_HOST
+Purpose: The address and port for your Transmission
+daemon's RPC (Remote Procedure Call) interface.
+Format: hostname:port
+Default: "localhost:9091" (standard for a local
+Transmission daemon).
+Note: If Transmission is running on a different machine,
+update this accordingly.
+
+TRANSMISSION_REMOTE_AUTH
+Purpose: Username and password for Transmission RPC, if
+you have enabled authentication in Transmission's
+settings.
+Format: "username:password"
+Default: "" (empty, meaning no authentication).
+Note: Leave empty if your Transmission setup does not
+require a username/password for RPC access.
+
+                   YOUTUBE PROCESSING
+
+Settings for downloading and handling YouTube videos using yt-dlp.
+
+ENABLE_CLIPBOARD_YOUTUBE
+Purpose: Controls whether JellyMac AMP monitors the
+clipboard for YouTube video links to download.
+Values: "true" (default), "false"
+
+DOWNLOAD_ARCHIVE_YOUTUBE
+Purpose: Path to a text file used by yt-dlp to keep
+track of video IDs that have already been downloaded.
+This prevents re-downloading the same video.
+Required: Yes, if ENABLE_CLIPBOARD_YOUTUBE is "true".
+Default: "${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"
+Note: The path must be writable by JellyMac AMP.
+
+COOKIES_ENABLED
+Purpose: Enable or disable the use of a cookies file for
+YouTube downloads. This can sometimes help with accessing
+age-restricted videos or content that requires login,
+but may also interfere with some download methods if
+YouTube changes its streaming techniques (e.g., SABR).
+Values:
+- "true": Enable cookies if COOKIES_FILE is also set.
+- "false": Disable cookies (default).
+Recommendation: Try with "false" first. Only enable if
+you encounter issues downloading specific videos that
+might require login/age verification.
+
+COOKIES_FILE
+Purpose: Path to your cookies.txt file for YouTube.com.
+This file should be in the Netscape cookie format.
+Optional: Yes. Only used if COOKIES_ENABLED is "true".
+Example: "/Users/yourname/Documents/youtube_cookies.txt"
+How to get: Typically exported from your web browser
+using a browser extension designed for exporting cookies
+(search for "cookies.txt export" for your browser).
+
+YTDLP_FORMAT
+Purpose: Specifies the preferred video and audio
+format/quality string for yt-dlp to download.
+Required: Yes, if ENABLE_CLIPBOARD_YOUTUBE is "true".
+Default: "bv[height<=1080][vcodec=vp9]+ba[acodec=opus]/bv[height<=1080]+ba/best"
+This attempts to get the best video up to 1080p
+(preferring VP9 codec) combined with the best audio
+(preferring Opus codec), falling back to other options
+if the preferred ones are not available.
+The square brackets [ and ] are used literally by
+yt-dlp and should not be escaped with backslashes in
+this configuration value. Proper quoting in the script
+ensures they are passed correctly.
+Note: yt-dlp format selection is very powerful. Refer
+to the yt-dlp documentation for more details and
+options: https://github.com/yt-dlp/yt-dlp#format-selection
+
+YTDLP_OPTS
+Purpose: An array of additional command-line options to
+pass to yt-dlp for every download.
+Format: Array of strings, e.g., ("--no-playlist" "--embed-metadata")
+Default: ( --no-playlist --merge-output-format mkv --embed-metadata --restrict-filenames )
+These defaults process only single videos (not whole
+playlists), merge output into an MKV container, embed
+metadata, and ensure filenames are safe for filesystems.
+Required: Yes, if ENABLE_CLIPBOARD_YOUTUBE is "true".
+Note: You can add other yt-dlp options here as needed.
+
+                     USER INTERFACE
+
+Settings affecting visual and interactive elements on macOS.
+
+ENABLE_DESKTOP_NOTIFICATIONS
+Purpose: Show native macOS system notifications for
+various events (e.g., new media detected, task
+completion, errors).
+Values: "true", "false" (default)
+Note: Only works on macOS. Requires osascript.
+
+ENABLE_STARTUP_BANNER
+Purpose: Show an ASCII art banner in the terminal when
+JellyMac AMP starts.
+Values: "true" (default), "false" (for a more minimal
+startup).
+
+SOUND_NOTIFICATION
+Purpose: Master switch to enable or disable all sound
+notifications played via the afplay command.
+Values: "true" (default), "false"
+Note: Only works on macOS. Requires afplay.
+
+SOUND_INPUT_DETECTED_FILE
+Purpose: Path to the sound file (.aiff, .mp3, .wav, etc.)
+played when new input (e.g., clipboard link, new file
+in drop folder) is detected by JellyMac AMP.
+Default: "/System/Library/Sounds/Funk.aiff"
+
+SOUND_TASK_SUCCESS_FILE
+Purpose: Path to the sound file played on successful
+completion of a major task (e.g., a media item is fully
+processed and moved).
+Default: "/System/Library/Sounds/Glass.aiff"
+
+SOUND_TASK_ERROR_FILE
+Purpose: Path to the sound file played when an error
+occurs during processing.
+Default: "/System/Library/Sounds/Basso.aiff"
+
+                   LOGGING & HISTORY
+
+Control log file generation, rotation, and history tracking.
+
+LOG_LEVEL
+Purpose: Controls the verbosity of messages logged to the
+console and, if enabled, to log files.
+Values:
+- "DEBUG": Most verbose. Use for troubleshooting detailed
+issues. Shows step-by-step operations.
+- "INFO": Standard operational messages (default). Shows
+major actions and status updates.
+- "WARN": Warnings about potential issues that don't stop
+the script but might need attention.
+- "ERROR": Only critical errors that likely halt a
+specific task or the script.
+Default: "INFO"
+
+LOG_ROTATION_ENABLED
+Purpose: Enable or disable automatic log file rotation.
+When enabled, a new log file is created daily (if the
+script runs), and old logs are deleted based on
+LOG_RETENTION_DAYS.
+Values: "true" (default), "false" (logs will append to a
+single file or not be written if LOG_DIR isn't set).
+
+LOG_DIR
+Purpose: The directory where log files will be stored if
+LOG_ROTATION_ENABLED is "true".
+Required: Yes, if LOG_ROTATION_ENABLED is "true".
+Default: "${JELLYMAC_PROJECT_ROOT}/logs"
+Note: Will be created automatically if it doesn't exist
+and AUTO_CREATE_MISSING_DIRS is "true".
+
+LOG_FILE_BASENAME
+Purpose: The base name for log files. The date will be
+appended to this name (e.g.,
+jellymac_automator_log_YYYY-MM-DD.log).
+Required: Yes, if LOG_ROTATION_ENABLED is "true".
+Default: "jellymac_automator_log"
+
+LOG_RETENTION_DAYS
+Purpose: How many days to keep old log files before they
+are automatically deleted during log rotation.
+Units: Days
+Range: 1-365 (recommended)
+Default: 7 (keeps one week of logs)
+
+HISTORY_FILE
+Purpose: Path to a file that tracks all successfully
+processed media items and other significant events
+(e.g., "Source Path -> Destination Path (Category)").
+Required: Yes, for history tracking.
+Default: "${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"
+(a hidden file in the project root).
+Note: To disable history logging, you can set this to
+/dev/null (e.g., HISTORY_FILE="/dev/null").
+
+             ADVANCED / CUSTOM TOOL PATHS
+
+Optional settings to override default paths for command-line
+tools. JellyMac AMP will typically find these tools if they
+are in standard Homebrew locations or your system's PATH.
+Only uncomment and modify these if your tools are installed
+in very non-standard locations.
+
+YTDLP_PATH
+Purpose: Override path to yt-dlp executable.
+Example: "/usr/local/custom_bin/yt-dlp"
+
+TORRENT_CLIENT_CLI_PATH
+Purpose: Override path to transmission-remote.
+Note: This setting is primarily managed by the
+TORRENT_CLIENT_CLI_PATH variable in the "TORRENT
+AUTOMATION" section. Using that one is preferred. This
+entry here is mostly for completeness if a user prefers
+to group all custom paths.
+
+RSYNC_PATH
+Purpose: Override path to rsync executable.
+Example: "/opt/custom/rsync"
+
+FLOCK_PATH
+Purpose: Override path to flock executable.
+Example: "/usr/local/opt/util-linux/bin/flock" (example
+if installed differently)
+
+FFMPEG_PATH
+Purpose: Override path to ffmpeg executable.
+Example: "/opt/homebrew/bin/ffmpeg"
+Note: ffmpeg is not actively used by the current core
+scripts provided but might be useful for future custom
+scripts or planned features.
+
+================================================================= End of Configuration Guide
