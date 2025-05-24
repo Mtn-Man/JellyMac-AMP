@@ -70,16 +70,18 @@ installation required.
 INSTALLATION
 ------------
 
-Step 1: Install Homebrew (visit brew.sh for instructions then) run:
+Step 1: Install Homebrew and Git (visit brew.sh for instructions then) run:
 
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+    brew install git
 
 Step 2: Clone and setup JellyMac AMP, run:
 
     git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
     
     cd JellyMac_AMP
-    
+
     chmod +x jellymac.sh bin/*.sh
 
 Step 3: Configure your paths:
