@@ -15,7 +15,7 @@
 # Side Effects: May modify system by installing packages
 install_missing_dependency() {
     local package_name="$1"
-    local log_prefix="[DEPENDENCY_INSTALLER]"
+    local log_prefix="Doctor"
     
     # Early exit if auto-installation is disabled
     if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" != "true" ]]; then
@@ -24,17 +24,17 @@ install_missing_dependency() {
     fi
     
     # Check if Homebrew is installed
-    if ! command -v brew &>/dev/null; then
+    if ! command -v brew >/dev/null 2>&1; then
         log_warn_event "$log_prefix" "Homebrew not found. Cannot auto-install dependencies."
         log_warn_event "$log_prefix" "Please install Homebrew from https://brew.sh/ to enable auto-installation."
         return 1
     fi
     
-    log_info_event "$log_prefix" "🍺 Auto-installing dependency: $package_name"
+    log_user_info "$log_prefix" "🍺 Auto-installing dependency: $package_name"
     
     # Attempt to install the package
     if brew install "$package_name"; then
-        log_info_event "$log_prefix" "✅ Successfully installed: $package_name"
+        log_user_info "$log_prefix" "✅ Successfully installed: $package_name"
         return 0
     else
         log_error_event "$log_prefix" "❌ Failed to install: $package_name"
@@ -86,14 +86,14 @@ collect_missing_dependencies() {
     
     # Check core dependencies
     for dep in "${REQUIRED_DEPENDENCIES[@]}"; do
-        if ! command -v "$dep" &>/dev/null; then
+        if ! command -v "$dep" >/dev/null 2>&1; then
             missing_deps[${#missing_deps[@]}]="$dep"
         fi
     done
     
     # Check feature-specific dependencies
     if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
-        if ! command -v "yt-dlp" &>/dev/null; then
+        if ! command -v "yt-dlp" >/dev/null 2>&1; then
             missing_deps[${#missing_deps[@]}]="yt-dlp"
         fi
     fi
@@ -102,7 +102,7 @@ collect_missing_dependencies() {
         local torrent_client_exe
         torrent_client_exe=$(basename "${TORRENT_CLIENT_CLI_PATH:-transmission-remote}")
         
-        if [[ ! -x "${TORRENT_CLIENT_CLI_PATH:-}" ]] && ! command -v "$torrent_client_exe" &>/dev/null; then
+        if [[ ! -x "${TORRENT_CLIENT_CLI_PATH:-}" ]] && ! command -v "$torrent_client_exe" >/dev/null 2>&1; then
             missing_deps[${#missing_deps[@]}]="transmission-cli"
         fi
     fi
@@ -198,7 +198,7 @@ handle_missing_dependencies_interactively() {
                     sed -i 's/^AUTO_INSTALL_DEPENDENCIES="false"/AUTO_INSTALL_DEPENDENCIES="true"/' "$config_file"
                 fi
                 
-                echo -e "\033[32m✓\033[0m Config updated: AUTO_INSTALL_DEPENDENCIES set to true"
+                log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true"
                 echo
                 
                 # Try installation with new setting
@@ -217,13 +217,13 @@ handle_missing_dependencies_interactively() {
                 
                 return $install_status
             else
-                echo -e "\033[31m✗\033[0m Could not update config file. Please set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
+                log_user_info "$log_prefix" "❌ Could not update config file. Please set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
                 return 1
             fi
             ;;
             
         3)  # Skip and continue
-            echo -e "\033[33m⚠️  Continuing without required dependencies. Some features may not work correctly.\033[0m"
+            log_user_info "$log_prefix" "⚠️  Continuing without required dependencies. Some features may not work correctly."
             echo "You can install the missing dependencies later by running:"
             echo "  brew install ${missing_deps[*]}"
             echo
@@ -232,7 +232,7 @@ handle_missing_dependencies_interactively() {
             ;;
             
         4)  # Exit and read guide
-            echo -e "\033[1mExiting JellyMac AMP setup.\033[0m"
+            log_user_info "$log_prefix" "Exiting JellyMac AMP setup."
             echo
             echo "To get started, please read the Getting Started guide:"
             echo -e "  \033[36m$JELLYMAC_PROJECT_ROOT/JellyMac_Getting_Started.txt\033[0m"
@@ -249,7 +249,7 @@ handle_missing_dependencies_interactively() {
             ;;
             
         *)  # Invalid selection
-            echo -e "\033[31mInvalid selection. Exiting.\033[0m"
+            log_user_info "$log_prefix" "Invalid selection. Exiting."
             exit 1
             ;;
     esac
@@ -284,8 +284,8 @@ is_volume_mounted() {
 
 # Main validation function, updated with volume mount checks
 validate_config_filepaths() {
-    local log_prefix="[CONFIG_VALIDATOR]"
-    log_info_event "$log_prefix" "🔍 Validating configuration filepaths..."
+    local log_prefix="Doctor"
+    log_user_info "$log_prefix" "🔍 Validating configuration filepaths..."
     local validation_failed=false
     
     # --- Required Directories ---
@@ -311,7 +311,7 @@ validate_config_filepaths() {
         
         if [[ -z "$dir" ]]; then
             log_error_event "$log_prefix" "❌ Required directory path is empty: $description"
-            log_info_event "$log_prefix" "Please set this path in your jellymac_config.sh file."
+            log_user_info "$log_prefix" "Please set this path in your jellymac_config.sh file."
             validation_failed=true
             continue
         fi
@@ -321,7 +321,7 @@ validate_config_filepaths() {
             local volume_name
             [[ "$dir" =~ ^/Volumes/([^/]+) ]] && volume_name="${BASH_REMATCH[1]}"
             log_error_event "$log_prefix" "❌ Volume '$volume_name' is not mounted for: $dir ($description)"
-            log_info_event "$log_prefix" "Please mount the volume '$volume_name' and try again."
+            log_user_info "$log_prefix" "Please mount the volume '$volume_name' and try again."
             validation_failed=true
             continue
         fi
@@ -334,19 +334,19 @@ validate_config_filepaths() {
                     if ! mkdir -p "$dir"; then
                         log_error_event "$log_prefix" "❌ Failed to create directory: $dir"
                         if [[ "$dir" == /Volumes/* ]]; then
-                            log_info_event "$log_prefix" "This may be due to permissions on the network volume. Check volume access rights."
+                            log_user_info "$log_prefix" "This may be due to permissions on the network volume. Check volume access rights."
                         fi
                         validation_failed=true
                     fi
                 else
                     log_error_event "$log_prefix" "❌ Directory does not exist: $dir ($description)"
-                    log_info_event "$log_prefix" "Create this directory manually or set AUTO_CREATE_MISSING_DIRS=true in config."
+                    log_user_info "$log_prefix" "Create this directory manually or set AUTO_CREATE_MISSING_DIRS=true in config."
                     validation_failed=true
                 fi
             fi
         elif [[ ! -w "$dir" ]]; then
             log_error_event "$log_prefix" "❌ Directory is not writable: $dir ($description)"
-            log_info_event "$log_prefix" "Please check permissions on this directory."
+            log_user_info "$log_prefix" "Please check permissions on this directory."
             validation_failed=true
         fi
     done
@@ -367,7 +367,7 @@ validate_config_filepaths() {
             local volume_name
             [[ "$dir" =~ ^/Volumes/([^/]+) ]] && volume_name="${BASH_REMATCH[1]}"
             log_warn_event "$log_prefix" "⚠️ Volume '$volume_name' is not mounted for optional: $dir ($description)"
-            log_info_event "$log_prefix" "Mount the volume '$volume_name' if you want to use this feature."
+            log_user_info "$log_prefix" "Mount the volume '$volume_name' if you want to use this feature."
             # Don't mark as failure for optional dirs, just warn
             continue
         fi
@@ -380,19 +380,19 @@ validate_config_filepaths() {
                     if ! mkdir -p "$dir"; then
                         log_error_event "$log_prefix" "❌ Failed to create optional directory: $dir"
                         if [[ "$dir" == /Volumes/* ]]; then
-                            log_info_event "$log_prefix" "This may be due to permissions on the network volume. Check volume access rights."
+                            log_user_info "$log_prefix" "This may be due to permissions on the network volume. Check volume access rights."
                         fi
                         validation_failed=true
                     fi
                 else
                     log_warn_event "$log_prefix" "⚠️ Optional directory does not exist: $dir ($description)"
-                    log_info_event "$log_prefix" "Create this directory manually or set AUTO_CREATE_MISSING_DIRS=true in config."
+                    log_user_info "$log_prefix" "Create this directory manually or set AUTO_CREATE_MISSING_DIRS=true in config."
                     # Don't mark as failure for optional dirs
                 fi
             fi
         elif [[ ! -w "$dir" ]]; then
             log_error_event "$log_prefix" "❌ Optional directory is not writable: $dir ($description)"
-            log_info_event "$log_prefix" "Please check permissions on this directory."
+            log_user_info "$log_prefix" "Please check permissions on this directory."
             validation_failed=true
         fi
     done
@@ -404,7 +404,7 @@ validate_config_filepaths() {
         log_error_event "$log_prefix" "❌ Configuration validation failed. Please fix the issues above."
         return 1
     else
-        log_info_event "$log_prefix" "✅ All configuration filepaths validated successfully."
+        log_user_info "$log_prefix" "✅ All configuration filepaths validated successfully."
         return 0
     fi
 }
@@ -416,7 +416,7 @@ validate_config_filepaths() {
 #   0 if daemon is running or magnet handling is disabled
 #   1 if daemon is not running and magnet handling is enabled
 check_transmission_daemon() {
-    local log_prefix="[HEALTH_CHECK]"
+    local log_prefix="Doctor"
     
     # Skip check if magnet handling is disabled
     if [[ "${ENABLE_CLIPBOARD_MAGNET:-false}" != "true" ]]; then
@@ -426,23 +426,23 @@ check_transmission_daemon() {
     local transmission_cli="${TORRENT_CLIENT_CLI_PATH:-transmission-remote}"
     local transmission_host="${TRANSMISSION_REMOTE_HOST:-localhost:9091}"
     
-    log_info_event "$log_prefix" "Checking if Transmission daemon is running..."
+    log_debug_event "$log_prefix" "Checking if Transmission daemon is running..."
     
     # Try to connect to Transmission daemon
-    if ! "$transmission_cli" "$transmission_host" --list &>/dev/null; then
+    if ! "$transmission_cli" "$transmission_host" --list >/dev/null 2>&1; then
         log_warn_event "$log_prefix" "⚠️ Transmission daemon appears to be offline."
         
         # Verify that transmission is actually installed before offering to enable it
-        if command -v transmission-daemon &>/dev/null || brew list transmission &>/dev/null; then
+        if command -v transmission-daemon >/dev/null 2>&1 || brew list transmission >/dev/null 2>&1; then
             offer_transmission_service_enablement
             return $?
         else
-            log_info_event "$log_prefix" "Transmission not found. Install with: brew install transmission"
-            log_info_event "$log_prefix" "Magnet link handling will be unavailable until Transmission is installed and running."
+            log_user_info "$log_prefix" "Transmission not found. Install with: brew install transmission"
+            log_user_info "$log_prefix" "Magnet link handling will be unavailable until Transmission is installed and running."
             return 1
         fi
     else
-        log_info_event "$log_prefix" "✅ Transmission daemon is running and accessible."
+        log_debug_event "$log_prefix" "✅ Transmission daemon is running and accessible."
         return 0
     fi
 }
@@ -455,7 +455,7 @@ check_transmission_daemon() {
 #   1 if service failed to start
 # Side Effects: May start Transmission service
 offer_transmission_service_enablement() {
-    local log_prefix="[TRANSMISSION_SERVICE]"
+    local log_prefix="Doctor"
     
     echo
     echo -e "\033[33m⚠️  Transmission daemon is not running\033[0m"
@@ -474,13 +474,15 @@ offer_transmission_service_enablement() {
     
     case "$response" in
         y|yes)
-            log_info_event "$log_prefix" "🚀 Starting Transmission as a background service..."
+            log_user_info "$log_prefix" "🚀 Starting Transmission as a background service..."
             
             # Start the service
             if brew services start transmission; then
-                log_info_event "$log_prefix" "✅ Transmission service started successfully"
+                log_user_info "$log_prefix" "✅ Transmission service started successfully"
                 echo -e "\033[32m✓\033[0m Transmission service has been started and will run automatically on login."
-                sleep 1
+                echo -e "\033[33m!\033[0m Note: You can manage the service with 'brew services stop transmission' if needed."
+                log_user_info "$log_prefix" "Waiting 3 seconds for service to initialize..."
+                sleep 3
                 
                 # Verify it's actually running now
                 local transmission_cli="${TORRENT_CLIENT_CLI_PATH:-transmission-remote}"
@@ -489,8 +491,8 @@ offer_transmission_service_enablement() {
                 # Give it a moment to fully initialize
                 sleep 2
                 
-                if "$transmission_cli" "$transmission_host" --list &>/dev/null; then
-                    log_info_event "$log_prefix" "✅ Transmission daemon is now accessible"
+                if "$transmission_cli" "$transmission_host" --list >/dev/null 2>&1; then
+                    log_user_info "$log_prefix" "✅ Transmission daemon is now accessible"
                     return 0
                 else
                     log_warn_event "$log_prefix" "⚠️ Transmission service started but daemon is still not accessible"
@@ -507,7 +509,7 @@ offer_transmission_service_enablement() {
             ;;
             
         *)  # Any other input is considered "no"
-            log_info_event "$log_prefix" "User declined to start Transmission service"
+            log_user_info "$log_prefix" "User declined to start Transmission service"
             echo -e "\033[33m⚠️  Magnet link handling will be unavailable until Transmission is running\033[0m"
             echo "You can start it manually later with: brew services start transmission"
             return 1
@@ -523,20 +525,19 @@ offer_transmission_service_enablement() {
 #   2 if critical checks pass but optional ones are missing
 # Side Effects: Exits with code 1 if any critical command is missing
 perform_system_health_checks() {
-    local log_prefix="[HEALTH_CHECK]"
-    log_info_event "$log_prefix" "🩺 Performing system health checks..."
+    local log_prefix="Doctor"
+    log_user_info "$log_prefix" "💊 Performing system health checks..."
     local any_optional_missing=false
 
     # Collect all missing dependencies (using Bash 3.2 compatible approach)
-    local missing_deps_string
-    missing_deps_string=$(collect_missing_dependencies)
     local missing_deps=()
     local IFS=$'\n'
-    for dep in $missing_deps_string; do
-    if [[ -n "$dep" ]]; then
-        missing_deps[${#missing_deps[@]}]="$dep"
-    fi
-done
+    while read -r dep; do
+        # Skip empty lines
+        if [[ -n "$dep" ]]; then
+            missing_deps+=("$dep")
+        fi
+    done < <(collect_missing_dependencies)
     
     local missing_count=${#missing_deps[@]}
     
@@ -545,29 +546,21 @@ done
         handle_missing_dependencies_interactively "${missing_deps[@]}"
         
         # Re-check dependencies after interactive handling (using Bash 3.2 compatible approach)
-        missing_deps_string=$(collect_missing_dependencies)
         missing_deps=()
         local IFS=$'\n'
-        for dep in $missing_deps_string; do
+        while read -r dep; do
+            # Skip empty lines
             if [[ -n "$dep" ]]; then
                 missing_deps[${#missing_deps[@]}]="$dep"
             fi
-        done
+        done < <(collect_missing_dependencies)
         
         missing_count=${#missing_deps[@]}
         
         # If still missing critical dependencies, exit
         if [[ $missing_count -gt 0 ]]; then
-            local dep_is_required
             for dep in "${missing_deps[@]}"; do
-                dep_is_required=false
-                for required_dep in "${REQUIRED_DEPENDENCIES[@]}"; do
-                    if [[ "$required_dep" == "$dep" ]]; then
-                        dep_is_required=true
-                        break
-                    fi
-                done
-                if [[ "$dep_is_required" == "true" ]]; then
+                if [[ " ${REQUIRED_DEPENDENCIES[*]} " == *" ${dep} "* ]]; then
                     log_error_event "$log_prefix" "Critical dependency '$dep' still missing. Exiting."
                     exit 1
                 fi
@@ -580,8 +573,8 @@ done
 
     # Check if auto-installation is enabled and Homebrew is available
     if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-        if command -v brew &>/dev/null; then
-            log_info_event "$log_prefix" "Auto-dependency installation is enabled and Homebrew is available."
+        if command -v brew >/dev/null 2>&1; then
+            log_user_info "$log_prefix" "Auto-dependency installation is enabled and Homebrew is available."
         else
             log_warn_event "$log_prefix" "Auto-dependency installation is enabled but Homebrew is not found."
             log_warn_event "$log_prefix" "Please install Homebrew from https://brew.sh/ to enable auto-installation."
@@ -593,41 +586,41 @@ done
     # So, if the script proceeds past these checks, the commands were found.
 
     # Check for flock and attempt to install it if missing
-    log_info_event "$log_prefix" "Checking dependency: flock"
-    if ! command -v flock &>/dev/null; then
+    log_debug_event "$log_prefix" "Checking dependency: flock"
+    if ! command -v flock >/dev/null 2>&1; then
         if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-            log_info_event "$log_prefix" "flock not found, attempting to install..."
+            log_user_info "$log_prefix" "flock not found, attempting to install..."
             if install_missing_dependency "flock"; then
-                log_info_event "$log_prefix" "Successfully installed flock"
+                log_user_info "$log_prefix" "Successfully installed flock"
             else
                 log_error_event "$log_prefix" "Failed to install flock and it's a required dependency. Exiting."
                 exit 1
             fi
         else
             log_error_event "$log_prefix" "flock not found. This is a required dependency. Install with: brew install flock"
-            log_info_event "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
+            log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
             exit 1
         fi
     fi
 
     # Built-in/common tools use debug-level logging
     log_debug_event "$log_prefix" "Checking common system tool: rsync"
-    find_executable "rsync" # Exits if not found
+    find_executable "rsync" >/dev/null # Exits if not found, suppress output
 
     if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
-        log_info_event "$log_prefix" "Checking dependency for YouTube: yt-dlp"
-        if ! command -v yt-dlp &>/dev/null; then
+        log_debug_event "$log_prefix" "Checking dependency for YouTube: yt-dlp"
+        if ! command -v yt-dlp >/dev/null 2>&1; then
             if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-                log_info_event "$log_prefix" "yt-dlp not found, attempting to install..."
+                log_user_info "$log_prefix" "yt-dlp not found, attempting to install..."
                 if install_missing_dependency "yt-dlp"; then
-                    log_info_event "$log_prefix" "Successfully installed yt-dlp"
+                    log_user_info "$log_prefix" "Successfully installed yt-dlp"
                 else
                     log_error_event "$log_prefix" "Failed to install yt-dlp and it's required for YouTube functionality. Exiting."
                     exit 1
                 fi
             else
                 log_error_event "$log_prefix" "yt-dlp not found. This is required for YouTube functionality. Install with: brew install yt-dlp"
-                log_info_event "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
+                log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
                 exit 1
             fi
         fi
@@ -636,22 +629,22 @@ done
     if [[ "${ENABLE_TORRENT_AUTOMATION:-false}" == "true" && -n "${TORRENT_CLIENT_CLI_PATH:-}" ]]; then
         local torrent_client_exe
         torrent_client_exe=$(basename "${TORRENT_CLIENT_CLI_PATH}")
-        log_info_event "$log_prefix" "Checking dependency for Torrents: $torrent_client_exe (from TORRENT_CLIENT_CLI_PATH)"
+        log_debug_event "$log_prefix" "Checking dependency for Torrents: $torrent_client_exe (from TORRENT_CLIENT_CLI_PATH)"
         
         # Check if the transmission-remote executable exists
-        if [[ ! -x "${TORRENT_CLIENT_CLI_PATH}" ]] && ! command -v "$torrent_client_exe" &>/dev/null; then
+        if [[ ! -x "${TORRENT_CLIENT_CLI_PATH}" ]] && ! command -v "$torrent_client_exe" >/dev/null 2>&1; then
             if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-                log_info_event "$log_prefix" "Torrent client $torrent_client_exe not found, attempting to install..."
+                log_user_info "$log_prefix" "Torrent client $torrent_client_exe not found, attempting to install..."
                 # Always install transmission-cli regardless of the command name
                 if install_missing_dependency "transmission-cli"; then
-                    log_info_event "$log_prefix" "Successfully installed transmission-cli"
+                    log_user_info "$log_prefix" "Successfully installed transmission-cli"
                 else
                     log_error_event "$log_prefix" "Failed to install transmission-cli and it's required for torrent functionality. Exiting."
                     exit 1
                 fi
             else
                 log_error_event "$log_prefix" "$torrent_client_exe not found. This is required for torrent functionality. Install with: brew install transmission-cli"
-                log_info_event "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
+                log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
                 exit 1
             fi
         fi
@@ -659,7 +652,7 @@ done
 
     if [[ -n "${JELLYFIN_SERVER:-}" ]]; then
         log_debug_event "$log_prefix" "Checking common system tool: curl"
-        find_executable "curl" # Exits if not found
+        find_executable "curl" >/dev/null # Exits if not found, suppress output
     fi
 
     # If we reach here, all external dependency commands checked via find_executable were found.
@@ -672,7 +665,8 @@ done
         local core_tools=()
         
         # Always check these core tools
-        core_tools+=("rsync" "curl")
+        core_tools[${#core_tools[@]}]="rsync"
+        core_tools[${#core_tools[@]}]="curl"
         
         # Add clipboard tools if needed
         if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" || "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
@@ -687,14 +681,14 @@ done
         fi
         
         # Check all core tools
-        for core_tool in "${core_tools[@]}"; do
-            if ! command -v "$core_tool" &>/dev/null; then
-                log_error_event "$log_prefix" "❌ Core macOS tool '$core_tool' is missing. This indicates a corrupted system."
-                log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac AMP."
-                exit 1
-            fi
-        done
-        log_debug_event "$log_prefix" "✅ All core macOS tools available."
+for core_tool in "${core_tools[@]}"; do
+    if ! command -v "$core_tool" >/dev/null 2>&1; then
+        log_error_event "$log_prefix" "❌ Core macOS tool '$core_tool' is missing. This indicates a corrupted system."
+        log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac AMP."
+        exit 1
+    fi
+done
+log_debug_event "$log_prefix" "✅ All core macOS tools available."
     fi  # <-- This closes the if [[ "$(uname)" == "Darwin" ]] statement
     
 # --- Check Transmission Daemon Status ---
@@ -707,7 +701,7 @@ if [[ "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
     fi
 fi
     
-    log_info_event "$log_prefix" "✅ All critical command checks passed successfully."
+    log_user_info "$log_prefix" "✅ System health checks passed."
     
     # --- Optional Commands ---
     # None left - all important tools are now considered critical

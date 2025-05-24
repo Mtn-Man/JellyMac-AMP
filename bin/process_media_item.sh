@@ -27,30 +27,21 @@ source "${LIB_DIR}/jellyfin_utils.sh"
 source "${LIB_DIR}/common_utils.sh" # Provides find_executable, quarantine_item, play_sound_notification etc.
 
 # --- Log Level & Prefix Initialization (after config is sourced) ---
-LOG_PREFIX_PROCESSOR="[MEDIA_ITEM_PROCESSOR]"
-# Define local logging functions for this script
-log_processor_info() { _log_event_if_level_met "$LOG_LEVEL_INFO" "$LOG_PREFIX_PROCESSOR" "$*"; }
-log_processor_warn() { _log_event_if_level_met "$LOG_LEVEL_WARN" "⚠️ WARN: $LOG_PREFIX_PROCESSOR" "$*" >&2; }
-# Use log_error_event from logging_utils.sh for fatal errors that should exit the script
-# Ensure log_error_event from logging_utils.sh exits, or add explicit exit 1 after its call.
-# For this script, we'll define a local one that ensures exit.
-log_processor_error() {
-    log_error_event "$LOG_PREFIX_PROCESSOR" "$*"; # Call the library function
-    exit 1; # Ensure this script exits
-}
-log_processor_debug() { _log_event_if_level_met "$LOG_LEVEL_DEBUG" "🐛 DEBUG: $LOG_PREFIX_PROCESSOR" "$*"; }
+# Set script log level from global configuration
+# shellcheck disable=SC2034  # Variable used by logging functions in sourced files
+SCRIPT_CURRENT_LOG_LEVEL=${JELLYMAC_LOG_LEVEL:-$LOG_LEVEL_INFO}
 
 # === Temporary File Cleanup Trap ===
 _PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN=()
 _cleanup_process_media_item_temp_files() {
     # shellcheck disable=SC2128 # We want to check array length
     if [[ ${#_PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[@]} -gt 0 ]]; then
-        log_processor_debug "EXIT trap: Cleaning up temporary files (${#_PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[@]} items)..."
+        log_debug_event "Processing" "EXIT trap: Cleaning up temporary files (${#_PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[@]} items)..."
         local temp_file_path_to_clean # Correctly local
         for temp_file_path_to_clean in "${_PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[@]}"; do
             if [[ -n "$temp_file_path_to_clean" && -e "$temp_file_path_to_clean" ]]; then
                 rm -rf "$temp_file_path_to_clean"
-                log_processor_debug "EXIT trap: Removed '$temp_file_path_to_clean'"
+                log_debug_event "Processing" "EXIT trap: Removed '$temp_file_path_to_clean'"
             fi
         done
     fi
@@ -67,18 +58,19 @@ PROCESSOR_EXIT_CODE=0
 
 # --- Argument Parsing ---
 if [[ $# -lt 2 ]] || [[ $# -gt 3 ]]; then
-    # Use log_processor_error which ensures exit
-    log_processor_error "Usage: $0 <item_type> <item_path> [item_category_hint]"
+    log_error_event "Processing" "Usage: $0 <item_type> <item_path> [item_category_hint]"
+    exit 1
 fi
 
 MAIN_ITEM_TYPE="$1"
 MAIN_ITEM_PATH="$2"
 MAIN_ITEM_CATEGORY_HINT="${3:-}" # Hint can be "Movies" or "Shows"
 
-log_processor_info "🚀 Starting processing for: Type='$MAIN_ITEM_TYPE', Path='$MAIN_ITEM_PATH', CategoryHint='$MAIN_ITEM_CATEGORY_HINT'"
+log_user_start "Processing" "🚀 Processing: $(basename "$MAIN_ITEM_PATH")"
 
 if [[ ! -e "$MAIN_ITEM_PATH" ]]; then
-    log_processor_error "Item path '$MAIN_ITEM_PATH' does not exist. Cannot process."
+    log_error_event "Processing" "Item path '$MAIN_ITEM_PATH' does not exist. Cannot process."
+    exit 1
 fi
 
 # --- Essential Config Variable Checks ---
@@ -88,7 +80,8 @@ fi
 : "${HISTORY_FILE:?PROCESSOR: HISTORY_FILE not set in config.}"
 : "${RSYNC_TIMEOUT:=300}" # Default to 300s if not set
 if [[ ${#MAIN_MEDIA_EXTENSIONS[@]} -eq 0 ]]; then
-    log_processor_error "MAIN_MEDIA_EXTENSIONS array is not defined or empty in config."
+    log_error_event "Processing" "MAIN_MEDIA_EXTENSIONS array is not defined or empty in config."
+    exit 1
 fi
 
 # --- Helper Functions ---
@@ -101,7 +94,7 @@ fi
 # Returns: 0 (this function does not alter PROCESSOR_EXIT_CODE directly)
 #==============================================================================
 _processor_final_drop_folder_cleanup() {
-    log_processor_debug "Initiating final cleanup check for original item: '$MAIN_ITEM_PATH'"
+    log_debug_event "Processing" "Initiating final cleanup check for original item: '$MAIN_ITEM_PATH'"
 
     # This function should only be called if the main processing was successful.
     # We check if MAIN_ITEM_PATH still exists and if it's a directory.
@@ -116,7 +109,7 @@ _processor_final_drop_folder_cleanup() {
             resolved_drop_folder_path=$(realpath "$DROP_FOLDER" 2>/dev/null)
         else
             # Fallback if realpath is not available (less robust for symlinks/complex paths)
-            log_processor_warn "realpath command not found. Using basic path comparison for safety check."
+            log_warn_event "Processing" "realpath command not found. Using basic path comparison for safety check."
             main_item_realpath="$MAIN_ITEM_PATH" # Simplified
             resolved_drop_folder_path="$DROP_FOLDER" # Simplified
         fi
@@ -126,26 +119,26 @@ _processor_final_drop_folder_cleanup() {
         [[ -z "$resolved_drop_folder_path" ]] && resolved_drop_folder_path="$DROP_FOLDER"
 
         if [[ "$main_item_realpath" == "$resolved_drop_folder_path" ]]; then
-            log_processor_warn "SAFETY PREVENTED: Final cleanup target '$MAIN_ITEM_PATH' resolves to DROP_FOLDER itself. Skipping rm -rf."
+            log_warn_event "Processing" "SAFETY PREVENTED: Final cleanup target '$MAIN_ITEM_PATH' resolves to DROP_FOLDER itself. Skipping rm -rf."
             return 0
         fi
 
-        log_processor_info "🗑️ Performing final cleanup of original source directory from DROP_FOLDER: '$MAIN_ITEM_PATH'"
+        log_info_event "Processing" "🗑️ Performing final cleanup of original source directory from DROP_FOLDER: '$MAIN_ITEM_PATH'"
         if rm -rf "$MAIN_ITEM_PATH"; then
-            log_processor_info "✅ Successfully deleted original source directory (and its contents) from DROP_FOLDER: '$MAIN_ITEM_PATH'"
+            log_info_event "Processing" "✅ Successfully deleted original source directory (and its contents) from DROP_FOLDER: '$MAIN_ITEM_PATH'"
             # Record this final deletion in history
             record_transfer_to_history "DELETED (final cleanup): $(basename "$MAIN_ITEM_PATH") from DROP_FOLDER" # In common_utils.sh
         else
             local rm_exit_status=$?
-            log_processor_warn "⚠️ Failed to delete original source directory '$MAIN_ITEM_PATH' during final cleanup (rm -rf exit code: $rm_exit_status). Manual check may be needed."
+            log_warn_event "Processing" "⚠️ Failed to delete original source directory '$MAIN_ITEM_PATH' during final cleanup (rm -rf exit code: $rm_exit_status). Manual check may be needed."
             # This is a warning; the main media processing was successful.
         fi
     elif [[ -f "$MAIN_ITEM_PATH" ]]; then
         # If it's a file and still exists, rsync --remove-source-files should have handled it.
         # This implies it wasn't the main media or an associated file moved by rsync.
-        log_processor_debug "Original item '$MAIN_ITEM_PATH' is a file and still exists. The rsync --remove-source-files in _processor_move_media_and_associated_files should have handled it if it was part of the processed media. No action by this specific cleanup function."
+        log_debug_event "Processing" "Original item '$MAIN_ITEM_PATH' is a file and still exists. The rsync --remove-source-files in _processor_move_media_and_associated_files should have handled it if it was part of the processed media. No action by this specific cleanup function."
     else
-        log_processor_debug "Original item '$MAIN_ITEM_PATH' no longer exists. No final cleanup needed by this function."
+        log_debug_event "Processing" "Original item '$MAIN_ITEM_PATH' no longer exists. No final cleanup needed by this function."
     fi
     return 0
 }
@@ -156,22 +149,24 @@ _processor_create_safe_destination_path() {
     local dest_dir
     dest_dir=$(dirname "$dest_path")
     if [[ ! -d "$dest_dir" ]]; then
-        log_processor_debug "Creating destination directory: $dest_dir"
+        log_debug_event "Processing" "Creating destination directory: $dest_dir"
         if ! mkdir -p "$dest_dir"; then
-            log_processor_error "Failed to create destination directory: $dest_dir. Check permissions."
+            log_error_event "Processing" "Failed to create destination directory: $dest_dir. Check permissions."
+            exit 1
         fi
     elif [[ ! -w "$dest_dir" ]]; then # Check if existing dir is writable
-        log_processor_error "Destination directory '$dest_dir' is not writable."
+        log_error_event "Processing" "Destination directory '$dest_dir' is not writable."
+        exit 1
     fi
 }
 
 # Cleans up empty subdirectories within a given base directory after processing.
 _processor_cleanup_empty_source_subdirectories() {
     local base_dir_to_check="$1"
-    log_processor_debug "Checking for empty subdirectories to clean up within '$base_dir_to_check'..."
+    log_debug_event "Processing" "Checking for empty subdirectories to clean up within '$base_dir_to_check'..."
 
     if [[ ! -d "$base_dir_to_check" ]]; then
-        log_processor_debug "Directory '$base_dir_to_check' does not exist or is not accessible for cleanup."
+        log_debug_event "Processing" "Directory '$base_dir_to_check' does not exist or is not accessible for cleanup."
         return 0
     fi
 
@@ -184,10 +179,10 @@ _processor_cleanup_empty_source_subdirectories() {
 
         if [[ -n "$empty_dir" && -d "$empty_dir" ]]; then
             found_empty=true
-            log_processor_info "Removing empty subdirectory: $empty_dir"
+            log_info_event "Processing" "Removing empty subdirectory: $empty_dir"
 
             if ! rmdir "$empty_dir" 2>/dev/null; then
-                log_processor_warn "Could not remove empty subdirectory '$empty_dir'. It might have been removed by another process, become non-empty, or have permission issues."
+                log_warn_event "Processing" "Could not remove empty subdirectory '$empty_dir'. It might have been removed by another process, become non-empty, or have permission issues."
                 break 
             fi
         fi
@@ -223,7 +218,7 @@ _processor_move_media_and_associated_files() {
             if [[ "$item_ext_check" == "$main_ext" ]]; then is_main_media="true"; break; fi;
         done
         if [[ "$is_main_media" != "true" ]]; then
-            log_processor_warn "Single file input '$source_item_path_arg' is not a recognized main media type (ext: '$item_ext_check')."
+            log_warn_event "Processing" "Single file input '$source_item_path_arg' is not a recognized main media type (ext: '$item_ext_check')."
             if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
                 if quarantine_item "$source_item_path_arg" "Not main media type"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
             else
@@ -235,7 +230,7 @@ _processor_move_media_and_associated_files() {
 
     elif [[ -d "$source_item_path_arg" ]]; then
         source_content_base_path="$source_item_path_arg"
-        log_processor_debug "Source is a directory. Identifying main media file in '$source_content_base_path'..."
+        log_debug_event "Processing" "Source is a directory. Identifying main media file in '$source_content_base_path'..."
 
         local -a find_main_patterns_arr=()
         i=0
@@ -257,13 +252,13 @@ _processor_move_media_and_associated_files() {
         find "$source_content_base_path" -maxdepth 1 -type f \( "${find_main_patterns_arr[@]}" \) -print0 2>/dev/null > "$find_stdout_tmp"
 
         if [[ ! -s "$find_stdout_tmp" ]]; then 
-            log_processor_warn "No media files matching MAIN_MEDIA_EXTENSIONS found directly in '$source_content_base_path'. Checking subdirectories (depth 1)..."
+            log_warn_event "Processing" "No media files matching MAIN_MEDIA_EXTENSIONS found directly in '$source_content_base_path'. Checking subdirectories (depth 1)..."
             # If no files directly in the folder, check one level deeper (common for torrents with a single subfolder)
             # This find is more complex to get the largest file from any immediate subfolder.
             # We'll find all media files, stat them, sort by size, and pick the largest.
             find "$source_content_base_path" -mindepth 1 -maxdepth 2 -type f \( "${find_main_patterns_arr[@]}" \) -print0 2>/dev/null > "$find_stdout_tmp"
             if [[ ! -s "$find_stdout_tmp" ]]; then
-                 log_processor_warn "No media files matching MAIN_MEDIA_EXTENSIONS found in '$source_content_base_path' or its immediate subdirectories."
+                 log_warn_event "Processing" "No media files matching MAIN_MEDIA_EXTENSIONS found in '$source_content_base_path' or its immediate subdirectories."
                  if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
                     if quarantine_item "$source_item_path_arg" "No media files in folder/subfolder"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
                 else
@@ -276,7 +271,7 @@ _processor_move_media_and_associated_files() {
         xargs --null -I{} stat -f "%z %N" "{}" < "$find_stdout_tmp" 2>/dev/null > "$xargs_stat_stdout_tmp"
         
         if [[ ! -s "$xargs_stat_stdout_tmp" ]]; then
-            log_processor_warn "stat command (via xargs) produced no output for files in '$source_content_base_path' (or subdirs). Possible permission issue or files vanished."
+            log_warn_event "Processing" "stat command (via xargs) produced no output for files in '$source_content_base_path' (or subdirs). Possible permission issue or files vanished."
             if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
                 if quarantine_item "$source_item_path_arg" "stat failed for media files"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
             else
@@ -289,7 +284,7 @@ _processor_move_media_and_associated_files() {
         sorted_stat_line=$(sort -rnk1,1 "$xargs_stat_stdout_tmp" | head -n1) 
         
         if [[ -z "$sorted_stat_line" ]]; then
-            log_processor_warn "Could not determine largest file in '$source_content_base_path' (sort/head failed or no valid stat output)."
+            log_warn_event "Processing" "Could not determine largest file in '$source_content_base_path' (sort/head failed or no valid stat output)."
             if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
                 if quarantine_item "$source_item_path_arg" "Largest file identification failed"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
             else
@@ -302,7 +297,7 @@ _processor_move_media_and_associated_files() {
         temp_path=$(echo "$sorted_stat_line" | awk '{$1=""; print $0}' | sed 's/^[[:space:]]*//') 
 
         if ! [[ "$temp_size" =~ ^[0-9]+$ ]] || [[ -z "$temp_path" ]] || [[ ! -f "$temp_path" ]]; then
-            log_processor_warn "Could not reliably parse size/path for largest file from: '$sorted_stat_line'. Parsed size: '$temp_size', path: '$temp_path'."
+            log_warn_event "Processing" "Could not reliably parse size/path for largest file from: '$sorted_stat_line'. Parsed size: '$temp_size', path: '$temp_path'."
             if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
                 if quarantine_item "$source_item_path_arg" "Parse largest file details failed"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
             else
@@ -315,9 +310,9 @@ _processor_move_media_and_associated_files() {
         # Update source_content_base_path to be the directory of the identified main media file
         # This is important for finding associated files later.
         source_content_base_path=$(dirname "$main_media_file_source_path")
-        log_processor_info "Identified main media file: '$main_media_file_source_path' (Size: ${item_size_bytes} bytes) within '$source_content_base_path'"
+        log_info_event "Processing" "Identified main media file: '$main_media_file_source_path' (Size: ${item_size_bytes} bytes) within '$source_content_base_path'"
     else
-        log_processor_warn "Source item '$source_item_path_arg' is not a valid file or directory."
+        log_warn_event "Processing" "Source item '$source_item_path_arg' is not a valid file or directory."
         if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
             if quarantine_item "$source_item_path_arg" "Invalid source type"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
         else
@@ -327,7 +322,7 @@ _processor_move_media_and_associated_files() {
     fi
 
     if [[ -z "$main_media_file_source_path" ]]; then
-        log_processor_warn "Main media file could not be identified for '$source_item_path_arg'."
+        log_warn_event "Processing" "Main media file could not be identified for '$source_item_path_arg'."
         if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
             if quarantine_item "$source_item_path_arg" "Main media not identified"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
         else
@@ -353,7 +348,7 @@ _processor_move_media_and_associated_files() {
     fi
 
     if ! check_available_disk_space "$(dirname "$final_main_media_dest_path")" "$required_kb"; then 
-         log_processor_warn "Not enough disk space for '$main_media_source_basename'. Required ${required_kb}KB."
+         log_warn_event "Processing" "Not enough disk space for '$main_media_source_basename'. Required ${required_kb}KB."
          if [[ "$quarantine_on_overall_failure_str" == "true" ]]; then
              if quarantine_item "$source_item_path_arg" "Insufficient disk space for media"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
          else
@@ -362,12 +357,13 @@ _processor_move_media_and_associated_files() {
          return 1
     fi
 
-    log_processor_info "Moving main media file (using rsync --remove-source-files):"
-    log_processor_info "  FROM: '$main_media_file_source_path'"
-    log_processor_info "  TO:   '$final_main_media_dest_path'"
+    log_user_progress "Processing" "📁 Moving: $main_media_source_basename"
+    log_debug_event "Processing" "Moving main media file (using rsync --remove-source-files):"
+    log_debug_event "Processing" "  FROM: '$main_media_file_source_path'"
+    log_debug_event "Processing" "  TO:   '$final_main_media_dest_path'"
 
-    if ! rsync -av --progress --remove-source-files --timeout="$RSYNC_TIMEOUT" "$main_media_file_source_path" "$final_main_media_dest_path"; then
-        log_processor_warn "rsync failed for main media file '$main_media_file_source_path'."
+   if ! rsync_with_network_retry "$main_media_file_source_path" "$final_main_media_dest_path" "-av --progress --remove-source-files --timeout=$RSYNC_TIMEOUT"; then
+        log_warn_event "Processing" "rsync failed for main media file '$main_media_file_source_path'."
         PROCESSOR_EXIT_CODE=1 
         return 1 
     fi
@@ -391,7 +387,7 @@ _processor_move_media_and_associated_files() {
         # Now, assoc_find_path is simply source_content_base_path, which was updated to be
         # the directory of the main media file if it was found in a subfolder.
         local assoc_find_path="$source_content_base_path"
-        log_processor_debug "Searching for associated files in '$assoc_find_path'."
+        log_debug_event "Processing" "Searching for associated files in '$assoc_find_path'."
 
         local current_assoc_file_source_path 
         find "$assoc_find_path" -maxdepth 1 -type f \( "${find_assoc_patterns_arr[@]}" \) \
@@ -410,9 +406,9 @@ _processor_move_media_and_associated_files() {
             new_assoc_filename="${media_file_radix_for_assoc}${assoc_lang_tag}.${assoc_file_source_ext_only}" 
             final_assoc_file_dest_path="$(dirname "$final_main_media_dest_path")/${new_assoc_filename}"
 
-            log_processor_info "Moving associated file '$assoc_file_basename' to '$final_assoc_file_dest_path'..."
+            log_info_event "Processing" "Moving associated file '$assoc_file_basename' to '$final_assoc_file_dest_path'..."
             if ! rsync -av --progress --remove-source-files "$current_assoc_file_source_path" "$final_assoc_file_dest_path"; then
-                log_processor_warn "Failed to rsync associated file '$assoc_file_basename'. It remains at source."
+                log_warn_event "Processing" "Failed to rsync associated file '$assoc_file_basename'. It remains at source."
             else
                 record_transfer_to_history "$current_assoc_file_source_path -> $final_assoc_file_dest_path ($determined_category - Assoc.)"
             fi
@@ -428,11 +424,11 @@ _processor_move_media_and_associated_files() {
         # This handles cases where the media was in a subfolder that got emptied,
         # and now the top-level torrent folder might also be empty.
         if [[ "$source_item_path_arg" != "$DROP_FOLDER" && -d "$source_item_path_arg" ]] && [[ -z "$(ls -A "$source_item_path_arg" 2>/dev/null)" ]]; then
-            log_processor_info "Attempting to remove now-empty original source directory: $source_item_path_arg"
+            log_info_event "Processing" "Attempting to remove now-empty original source directory: $source_item_path_arg"
             if rmdir "$source_item_path_arg" 2>/dev/null; then
-                log_processor_info "Successfully removed empty original source directory: $source_item_path_arg"
+                log_info_event "Processing" "Successfully removed empty original source directory: $source_item_path_arg"
             else
-                log_processor_warn "Could not remove original source directory '$source_item_path_arg'. It might not be empty or has permission issues."
+                log_warn_event "Processing" "Could not remove original source directory '$source_item_path_arg'. It might not be empty or has permission issues."
             fi
         fi
     fi
@@ -445,12 +441,12 @@ _processor_process_as_movie() {
     local item_path="$1"    
     local original_item_name movie_title final_movie_folder_name final_dest_template 
     original_item_name=$(basename "$item_path")
-    log_processor_info "Processing as Movie: '$item_path' (Original Name: '$original_item_name')"
+    log_debug_event "Processing" "Processing as Movie: '$item_path' (Original Name: '$original_item_name')"
 
     movie_title=$(extract_and_sanitize_movie_info "$original_item_name")
 
     if [[ "$movie_title" == "Unknown Movie" || -z "$movie_title" ]]; then
-        log_processor_warn "Could not determine movie title for '$original_item_name'."
+        log_warn_event "Processing" "Could not determine movie title for '$original_item_name'."
         if quarantine_item "$item_path" "Unknown movie title"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
         return 1 
     fi
@@ -459,11 +455,11 @@ _processor_process_as_movie() {
     final_dest_template="${DEST_DIR_MOVIES}/${final_movie_folder_name}/${final_movie_folder_name}"
 
     if ! _processor_move_media_and_associated_files "$item_path" "$final_dest_template" "Movies" "true"; then
-        log_processor_warn "Failed to fully process movie '$original_item_name' (move media failed)."
+        log_warn_event "Processing" "Failed to fully process movie '$original_item_name' (move media failed)."
         return 1 
     fi
 
-    log_processor_info "🎬 Movie processed to folder: ${DEST_DIR_MOVIES}/${final_movie_folder_name}"
+    log_user_complete "Processing" "🎬 Movie organized: $final_movie_folder_name"
     if [[ "${ENABLE_JELLYFIN_SCAN_MOVIES:-false}" == "true" ]]; then 
         trigger_jellyfin_library_scan "Movies" 
     fi
@@ -477,10 +473,10 @@ _processor_process_as_show() {
     local show_info_str final_show_folder_name season_folder_name episode_filename_radix final_dest_template 
 
     original_item_name=$(basename "$item_path")
-    log_processor_info "Processing as TV Show: '$item_path' (Original Name: '$original_item_name')"
+    log_debug_event "Processing" "Processing as TV Show: '$item_path' (Original Name: '$original_item_name')"
 
     show_info_str=$(extract_and_sanitize_show_info "$original_item_name")
-    log_processor_debug "Got show_info_str from media_utils: '$show_info_str'"
+    log_debug_event "Processing" "Got show_info_str from media_utils: '$show_info_str'"
     
     show_name=$(echo "$show_info_str" | awk -F'###' '{print $1}')
     extracted_year=$(echo "$show_info_str" | awk -F'###' '{print $2}')
@@ -490,10 +486,10 @@ _processor_process_as_show() {
         extracted_year=""
     fi
     
-    log_processor_debug "Parsed values: show_name='$show_name', year='$extracted_year', se='$season_episode_str'"
+    log_debug_event "Processing" "Parsed values: show_name='$show_name', year='$extracted_year', se='$season_episode_str'"
 
     if [[ "$show_name" == "Unknown Show" || -z "$season_episode_str" ]]; then
-        log_processor_warn "Could not determine critical show details (Show Name or S/E) for '$original_item_name'. Got: Name='$show_name', Year='$extracted_year', SE='$season_episode_str'"
+        log_warn_event "Processing" "Could not determine critical show details (Show Name or S/E) for '$original_item_name'. Got: Name='$show_name', Year='$extracted_year', SE='$season_episode_str'"
         if quarantine_item "$item_path" "Unknown show details (Name or S/E missing)"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
         return 1 
     fi
@@ -502,7 +498,7 @@ _processor_process_as_show() {
         season_num="${BASH_REMATCH[1]}"  
         episode_num="${BASH_REMATCH[2]}" 
     else
-        log_processor_warn "Could not parse S/E numbers from '$season_episode_str' for '$original_item_name'."
+        log_warn_event "Processing" "Could not parse S/E numbers from '$season_episode_str' for '$original_item_name'."
         if quarantine_item "$item_path" "Malformed S/E string from parser ('$season_episode_str')"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
         return 1
     fi
@@ -518,11 +514,11 @@ _processor_process_as_show() {
     final_dest_template="${DEST_DIR_SHOWS}/${final_show_folder_name}/${season_folder_name}/${episode_subfolder_name}/${episode_filename_radix}"
 
     if ! _processor_move_media_and_associated_files "$item_path" "$final_dest_template" "Shows" "true"; then
-        log_processor_warn "Failed to fully process show '$original_item_name' (move media failed)."
+        log_warn_event "Processing" "Failed to fully process show '$original_item_name' (move media failed)."
         return 1 
     fi
 
-    log_processor_info "📺 TV Show episode processed to: ${DEST_DIR_SHOWS}/${final_show_folder_name}/${season_folder_name}/${episode_subfolder_name}/"
+    log_user_complete "Processing" "📺 TV Show organized: ${show_name} S${season_num}E${padded_episode_num}"
     if [[ "${ENABLE_JELLYFIN_SCAN_SHOWS:-false}" == "true" ]]; then 
         trigger_jellyfin_library_scan "Shows" 
     fi
@@ -538,11 +534,11 @@ _processor_handle_item_by_category() {
     local actual_category_to_process
 
     if [[ "$category_to_process_hint" != "Movies" && "$category_to_process_hint" != "Shows" ]]; then
-        log_processor_info "Category hint ('$category_to_process_hint') not definitive for '$item_basename'. Auto-determining category..."
+        log_debug_event "Processing" "Category hint ('$category_to_process_hint') not definitive for '$item_basename'. Auto-determining category..."
         actual_category_to_process=$(determine_media_category "$item_basename") 
-        log_processor_info "Auto-determined category for '$item_basename': '$actual_category_to_process'"
+        log_debug_event "Processing" "Auto-determined category for '$item_basename': '$actual_category_to_process'"
     else
-        log_processor_info "Using provided category hint for '$item_basename': '$category_to_process_hint'"
+        log_debug_event "Processing" "Using provided category hint for '$item_basename': '$category_to_process_hint'"
         actual_category_to_process="$category_to_process_hint"
     fi
 
@@ -556,7 +552,7 @@ _processor_handle_item_by_category() {
             return $? 
             ;;
         *) 
-            log_processor_warn "Item '$item_basename' could not be categorized as Movies or Shows. Effective category: '$actual_category_to_process'."
+            log_warn_event "Processing" "Item '$item_basename' could not be categorized as Movies or Shows. Effective category: '$actual_category_to_process'."
             if quarantine_item "$item_path_to_categorize" "Uncategorized item ('$actual_category_to_process')"; then PROCESSOR_EXIT_CODE=2; else PROCESSOR_EXIT_CODE=1; fi
             return 1 
             ;;
@@ -564,7 +560,7 @@ _processor_handle_item_by_category() {
 }
 
 # --- Main Dispatch Logic ---
-log_processor_debug "Dispatching item type: '$MAIN_ITEM_TYPE'"
+log_debug_event "Processing" "Dispatching item type: '$MAIN_ITEM_TYPE'"
 PROCESSING_FUNCTION_RETURN_STATUS=1 
 
 case "$MAIN_ITEM_TYPE" in
@@ -581,7 +577,8 @@ case "$MAIN_ITEM_TYPE" in
         PROCESSING_FUNCTION_RETURN_STATUS=$?
         ;;
     *)
-        log_processor_error "Invalid item type '$MAIN_ITEM_TYPE' received by processor."
+        log_error_event "Processing" "Invalid item type '$MAIN_ITEM_TYPE' received by processor."
+        exit 1
         ;;
 esac
 
@@ -607,20 +604,20 @@ SECS=$((ELAPSED_SECONDS % 60))
 original_item_basename_for_log=$(basename "$MAIN_ITEM_PATH")
 
 if [[ "$PROCESSOR_EXIT_CODE" -eq 0 ]]; then
-    log_processor_info "✨ Successfully processed '$original_item_basename_for_log'. Total time: ${MINS}m${SECS}s."
-    play_sound_notification "task_success" "$LOG_PREFIX_PROCESSOR"
+    log_user_complete "Processing" "✨ Successfully processed: $(basename "$MAIN_ITEM_PATH") (${MINS}m${SECS}s)"
+    play_sound_notification "task_success" "Processing"
 elif [[ "$PROCESSOR_EXIT_CODE" -eq 2 ]]; then 
-    log_processor_info "🟡 Item '$original_item_basename_for_log' was successfully quarantined. Total time: ${MINS}m${SECS}s."
-    play_sound_notification "task_error" "$LOG_PREFIX_PROCESSOR" 
+    log_warn_event "Processing" "🟡 Item quarantined: $(basename "$MAIN_ITEM_PATH") (${MINS}m${SECS}s)"
+    play_sound_notification "task_error" "Processing" 
     PROCESSOR_EXIT_CODE=0 
 else 
-    log_processor_warn "💀 Failed to process '$original_item_basename_for_log'. An error occurred. Total time: ${MINS}m${SECS}s."
-    play_sound_notification "task_error" "$LOG_PREFIX_PROCESSOR"
+    log_warn_event "Processing" "💀 Processing failed: $(basename "$MAIN_ITEM_PATH") (${MINS}m${SECS}s)"
+    play_sound_notification "task_error" "Processing"
     [[ "$PROCESSOR_EXIT_CODE" -eq 0 ]] && PROCESSOR_EXIT_CODE=1 
 fi
 
 _cleanup_process_media_item_temp_files 
 
-log_processor_info "--- Processor Finished for Item: '$original_item_basename_for_log' with Reported Exit Code: $PROCESSOR_EXIT_CODE ---"
+log_debug_event "Processing" "--- Processor Finished for Item: '$original_item_basename_for_log' with Reported Exit Code: $PROCESSOR_EXIT_CODE ---"
 exit "$PROCESSOR_EXIT_CODE"
 

@@ -1,103 +1,140 @@
 =================================================================
-                    JellyMac AMP
-     Lightweight macOS Automated Media Pipeline
+                       JellyMac AMP
+                Your Mac's Personal Media Assistant
 =================================================================
 
-A free, lightweight automation suite that simplifies media management on macOS.
-With just a clipboard copy of the link, download videos from YouTube or grab torrents 
-via their magnet links. Automatically organize downloaded movies and TV shows into a 
-clean library structure, with optional integration for Jellyfin, Plex and other 
-media servers. This app is modular: you can use specific features independently 
-or set up a complete end-to-end media pipeline - the choice is yours.
+Transform media chaos into organized bliss with just a copy or a drop.
 
-FEATURES
---------
-* Interactive Onboarding: User-friendly first-time setup with automatic 
-  dependency detection and installation options.
-* Clipboard Monitoring: Auto-downloads YouTube videos and sends magnet
-  links to Transmission for download.
-* Drop Folder Automation: Sorts and organizes movies, TV shows, and
-  their related files (e.g. info and subtitle files).
-* File Stability Detection: Ensures files are completely transferred 
-  before processing to prevent corruption.
-* Jellyfin Integration: Cleans up filenames, moves files, and triggers
-  library updates.
-* macOS Native: Works with standard macOS functions and notifications.
-* Robust Error Handling: Prevents race conditions and partial file processing.
+JellyMac AMP is the automation suite that makes media management 
+invisible. Copy a YouTube URL to your clipboard, copy a magnet link, 
+or drop a file in your designated folder - then walk away. Your media 
+appears in your library, perfectly organized, without lifting another 
+finger.
+
+THE MAGIC
+---------
+Copy. Drop. Done.
+
+* Copy a YouTube URL to your clipboard -> Video downloads and organizes automatically
+  
+* Copy a magnet link to your clipboard -> Torrent starts downloading via Transmission  
+  
+* Drop or download media files to your designated folder -> Movies and TV shows get sorted and renamed
+  
+* Zero manual work -> Everything goes to the right place with proper names, server is updated
+
+  
+WHAT MAKES IT SPECIAL
+---------------------
+
+Intelligent Automation
+Your Mac watches your clipboard and designated drop folder. Copy a 
+link anywhere on your Mac, and JellyMac AMP springs into action. No 
+buttons to click, no interfaces to manage - just seamless background 
+magic.
+
+Network-Smart Operations
+Your Mac runs JellyMac AMP, but your media server can be anywhere - 
+Linux, Windows, NAS, cloud instance. As long as your Mac can reach 
+the media folders over your network, you're golden. No server-side 
+installation required. Built for the real world where WiFi hiccups 
+and network shares occasionally disconnect. Automatic retries, resume 
+capability, and graceful handling of network issues mean your 
+transfers complete reliably.
+
+Media Server Ready
+Works beautifully with Jellyfin, Plex, Emby, and others. Files appear 
+properly named and organized, with automatic library updates so your 
+content is immediately streamable.
+
+macOS Native Experience
+Desktop notifications, sound feedback, and clipboard integration that 
+feels like it belongs on your Mac. No clunky cross-platform 
+compromises.
+
+PERFECT FOR
+-----------
+* Media enthusiasts tired of manual file organization
+* YouTube content creators downloading their own videos 
+* Torrent users wanting seamless download integration
+* Jellyfin/Plex users seeking effortless library management
+* Anyone who believes technology should work invisibly and reliably
 
 COMPATIBILITY
 -------------
-JellyMac AMP runs on your Mac in the terminal app of your choice. 
-Your Jellyfin server can be running on Linux, Windows, macOS, or even a NAS 
-- as long as your Mac can access the  media folders via a 
-network share (SMB, NFS, etc.), JellyMac AMP will work. 
-No additional software needs to be installed on the server itself.
+Your Mac runs JellyMac AMP, but your media server can be anywhere - 
+Linux, Windows, NAS, cloud instance. As long as your Mac can reach 
+the media folders over your network, you're golden. No server-side 
+installation required.
 
-**DISCLAIMER**
----------------------------------------------------------------------
-JellyMac AMP is a tool designed to automate media management tasks.
+INSTALLATION
+------------
 
-Users are responsible for ensuring that their use of this software
-complies with all applicable laws, including copyright regulations,
-and respects the terms of service of any third-party platforms
-accessed.
+Step 1: Install Homebrew (visit brew.sh for instructions then) run:
 
-This tool should be used only with media that you have the legal right
-to access, download, and manage.
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-The developers of JellyMac AMP do not endorse or condone any form of
-copyright infringement.
+Step 2: Clone and setup JellyMac AMP, run:
 
-ALPHA SOFTWARE NOTICE: JellyMac AMP is in early development. While thoroughly
-tested, there is always a risk of unintended data loss with software
-that manages files. Users should ALWAYS maintain backups of important
-media files.
----------------------------------------------------------------------
+    git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
+    
+    cd JellyMac_AMP
+    
+    chmod +x jellymac.sh bin/*.sh
+
+Step 3: Configure your paths:
+
+Copy lib/jellymac_config.example.sh to jellymac_config.sh and edit it 
+with your media folder locations (Movies, TV Shows, and Drop Folder 
+paths).
+
+Step 4: Launch and enjoy! run:
+
+    ./jellymac.sh
+
+The friendly setup wizard handles dependency installation and walks you 
+through first-time configuration. Within minutes, you'll have your 
+personal media assistant running in the background.
+
+Step 5 (optional): When finished, just press control+c to exit or close your terminal
 
 REQUIREMENTS
 ------------
-* macOS (Bash 3.2)
-* Homebrew (https://brew.sh)
-* flock, yt-dlp, transmission-cli (install via Homebrew)
-* [Optional] A Media server (Jellyfin, Plex, Emby, etc.) for streaming organized content
+* macOS (any recent version)
+* Homebrew for easy dependency management
+* A few minutes for the guided setup process
+* [Optional] Media server (Jellyfin, Plex, etc.) for streaming 
+  organized content
 
-QUICK START
------------
-1. Install Homebrew (if not already installed):
-
-       /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-2. Clone the repo and make scripts executable:
-
-      git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
-      cd JellyMac_AMP
-      chmod +x jellymac.sh bin/*.sh
-
-3. Configure:
-   
-   For configuration, copy lib/jellymac_config.example.sh and rename the copy to jellymac_config.sh.
- Then, open the new jellymac_config.sh file and edit it to add your file paths - edit any other desired setting as 	well while you're there.
-   (At minimum, please set your destination media folders -one for Shows, one for Movies-
-   and DROP_FOLDER locations)
-
-4. Run JellyMac AMP:
-
-       ./jellymac.sh
-   
-   The interactive onboarding process will:
-   - Detect any missing dependencies
-   - Offer to install them for you
-   - Guide you through first-time setup
+Dependencies like yt-dlp, transmission-cli, and flock install 
+automatically during setup.
 
 DOCUMENTATION
 -------------
-See Getting_Started.txt for full setup, configuration, and
-troubleshooting instructions.
+See Getting_Started.txt for detailed setup instructions, configuration 
+options, and troubleshooting guidance.
 
-ABOUT
------
-JellyMac AMP was created by Eli Sher, May 2025.
+THE BOTTOM LINE
+---------------
+JellyMac AMP transforms media management from a chore into an invisible 
+background process. It's sophisticated enough for power users but 
+simple enough for anyone who just wants their media library to "just 
+work."
 
-LICENSE
--------
+Because life's too short to have to manually organize files.
+
+=================================================================
+
+IMPORTANT DISCLAIMERS
+---------------------
+Legal Responsibility: Users must ensure compliance with all applicable 
+laws and platform terms of service. Use only with media you have legal 
+rights to access and manage.
+
+Beta Software: JellyMac AMP is still in early development. Always maintain 
+backups of important media files.
+
+=================================================================
+
+Created by Eli Sher, May 2025
 MIT License - See LICENSE.txt

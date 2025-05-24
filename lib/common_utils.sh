@@ -14,12 +14,12 @@ fi
 
 # --- Ensure STATE_DIR is available (expected from jellymac_config.sh) ---
 if [[ -z "$STATE_DIR" ]]; then
-    log_error_event "COMMON_UTILS" "CRITICAL: STATE_DIR is not set. This variable is expected from jellymac_config.sh. Exiting."
+    log_error_event "Utils" "CRITICAL: STATE_DIR is not set. This variable is expected from jellymac_config.sh. Exiting."
     exit 1
 elif [[ ! -d "$STATE_DIR" ]]; then
-    log_info_event "COMMON_UTILS" "STATE_DIR ('$STATE_DIR') does not exist. Attempting to create."
+    log_user_info "Utils" "STATE_DIR ('$STATE_DIR') does not exist. Attempting to create."
     if ! mkdir -p "$STATE_DIR"; then
-        log_error_event "COMMON_UTILS" "CRITICAL: Failed to create STATE_DIR ('$STATE_DIR'). Check permissions. Exiting."
+        log_error_event "Utils" "CRITICAL: Failed to create STATE_DIR ('$STATE_DIR'). Check permissions. Exiting."
         exit 1
     fi
 fi
@@ -32,7 +32,7 @@ _determine_md5_cmd() {
     elif command -v md5sum &>/dev/null; then # Linux md5sum
         MD5_CMD="md5sum | cut -d' ' -f1"
     else
-        log_warn_event "COMMON_UTILS" "Neither 'md5' (macOS) nor 'md5sum' (Linux) found. Lock file names will be less unique (using basename)."
+        log_warn_event "Utils" "Neither 'md5' (macOS) nor 'md5sum' (Linux) found. Lock file names will be less unique (using basename)."
         # Fallback to basename, which is not ideal for uniqueness if paths are very similar
         # but better than failing entirely. This should be caught by health checks ideally.
         MD5_CMD="basename"
@@ -55,7 +55,7 @@ _determine_md5_cmd # Call it to set MD5_CMD globally for this script's session
 acquire_stability_lock() {
     local item_path_to_lock="$1"
     if [[ -z "$item_path_to_lock" ]]; then
-        log_error_event "COMMON_UTILS" "LOCKING: No item path provided to acquire_stability_lock."
+        log_error_event "Utils" "LOCKING: No item path provided to acquire_stability_lock."
         return 1
     fi
 
@@ -65,10 +65,10 @@ acquire_stability_lock() {
     local lock_dir_path="${STATE_DIR}/.item_lockdir_${item_hash}"
 
     if mkdir "$lock_dir_path" 2>/dev/null; then
-        log_debug_event "COMMON_UTILS" "LOCKING: Acquired lock for '$item_path_to_lock' (LockDir: $lock_dir_path)"
+        log_debug_event "Utils" "LOCKING: Acquired lock for '$item_path_to_lock' (LockDir: $lock_dir_path)"
         return 0 # Lock acquired
     else
-        log_debug_event "COMMON_UTILS" "LOCKING: Failed to acquire lock for '$item_path_to_lock' (LockDir: $lock_dir_path probably exists)"
+        log_debug_event "Utils" "LOCKING: Failed to acquire lock for '$item_path_to_lock' (LockDir: $lock_dir_path probably exists)"
         return 1 # Lock not acquired (likely already exists)
     fi
 }
@@ -83,7 +83,7 @@ acquire_stability_lock() {
 release_stability_lock() {
     local item_path_to_unlock="$1"
     if [[ -z "$item_path_to_unlock" ]]; then
-        log_error_event "COMMON_UTILS" "LOCKING: No item path provided to release_stability_lock."
+        log_error_event "Utils" "LOCKING: No item path provided to release_stability_lock."
         return 1
     fi
 
@@ -94,14 +94,14 @@ release_stability_lock() {
 
     if [[ -d "$lock_dir_path" ]]; then
         if rmdir "$lock_dir_path" 2>/dev/null; then
-            log_debug_event "COMMON_UTILS" "LOCKING: Released lock for '$item_path_to_unlock' (LockDir: $lock_dir_path)"
+            log_debug_event "Utils" "LOCKING: Released lock for '$item_path_to_unlock' (LockDir: $lock_dir_path)"
             return 0 # Lock released
         else
-            log_warn_event "COMMON_UTILS" "LOCKING: Failed to release lock for '$item_path_to_unlock'. LockDir '$lock_dir_path' not empty or permission issue?"
+            log_warn_event "Utils" "LOCKING: Failed to release lock for '$item_path_to_unlock'. LockDir '$lock_dir_path' not empty or permission issue?"
             return 1 # Error releasing lock
         fi
     else
-        log_debug_event "COMMON_UTILS" "LOCKING: No lock found to release for '$item_path_to_unlock' (LockDir: $lock_dir_path)"
+        log_debug_event "Utils" "LOCKING: No lock found to release for '$item_path_to_unlock' (LockDir: $lock_dir_path)"
         return 0 # No lock to release, consider it success
     fi
 }
@@ -123,27 +123,27 @@ record_transfer_to_history() {
     local history_entry="$1"
 
     if [[ -z "$HISTORY_FILE" ]]; then
-         log_warn_event "COMMON_UTILS" "HISTORY: HISTORY_FILE is not set in config. Cannot record history."
+         log_warn_event "Utils" "HISTORY: HISTORY_FILE is not set in config. Cannot record history."
          return 1
     fi
 
     local history_dir; history_dir=$(dirname "$HISTORY_FILE")
     if [[ ! -d "$history_dir" ]]; then
-        log_info_event "COMMON_UTILS" "HISTORY: History directory '$history_dir' not found. Attempting to create."
+        log_user_info "Utils" "HISTORY: History directory '$history_dir' not found. Attempting to create."
         if ! mkdir -p "$history_dir"; then
-            log_error_event "COMMON_UTILS" "HISTORY: Failed to create history directory '$history_dir'. Cannot record history."
+            log_error_event "Utils" "HISTORY: Failed to create history directory '$history_dir'. Cannot record history."
             return 1
         fi
     fi
     if [[ ! -w "$history_dir" ]]; then
-         log_error_event "COMMON_UTILS" "HISTORY: History directory '$history_dir' is not writable. Cannot record history."
+         log_error_event "Utils" "HISTORY: History directory '$history_dir' is not writable. Cannot record history."
          return 1
     fi
 
     if [[ ! -f "$HISTORY_FILE" ]]; then
-        log_info_event "COMMON_UTILS" "HISTORY: History file '$HISTORY_FILE' not found. Creating."
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO: COMMON_UTILS - History file '$HISTORY_FILE' not found. Creating." >> /dev/stderr
-        touch "$HISTORY_FILE" || { log_error_event "COMMON_UTILS" "HISTORY: Could not create history file: $HISTORY_FILE"; return 1; }
+        log_user_info "Utils" "HISTORY: History file '$HISTORY_FILE' not found. Creating."
+        log_debug_event "Utils" "HISTORY: History file '$HISTORY_FILE' not found. Creating."
+        touch "$HISTORY_FILE" || { log_error_event "Utils" "HISTORY: Could not create history file: $HISTORY_FILE"; return 1; }
     fi
 
     local history_line; history_line="$(date '+%Y-%m-%d %H:%M:%S') - $history_entry"
@@ -154,7 +154,7 @@ record_transfer_to_history() {
             # Lock acquired
             if ! echo "$history_line" >&200; then
                 local echo_status=$? # Capture actual echo status for logging
-                log_error_event "COMMON_UTILS" "HISTORY: Write to history file failed (flock held, echo status: $echo_status). File: $HISTORY_FILE"
+                log_error_event "Utils" "HISTORY: Write to history file failed (flock held, echo status: $echo_status). File: $HISTORY_FILE"
                 flock -u 200  # Release the lock
                 exec 200>&-   # Close the file descriptor
                 return 1      # Indicate failure
@@ -165,7 +165,7 @@ record_transfer_to_history() {
         else
             # Flock failed (timeout or other error)
             local flock_status=$? # Capture flock status for logging
-            log_warn_event "COMMON_UTILS" "HISTORY: Flock timeout or error (status: $flock_status). Could not acquire lock for history file '$HISTORY_FILE'. Entry: '$history_entry'"
+            log_warn_event "Utils" "HISTORY: Flock timeout or error (status: $flock_status). Could not acquire lock for history file '$HISTORY_FILE'. Entry: '$history_entry'"
             exec 200>&-       # Close the file descriptor
             return 1          # Indicate failure
         fi
@@ -173,15 +173,15 @@ record_transfer_to_history() {
         # Fallback if flock is not available
         if ! echo "$history_line" >> "$HISTORY_FILE"; then
             local echo_status=$? # Capture actual echo status for logging
-            log_error_event "COMMON_UTILS" "HISTORY: Write to history file failed (flock not available, echo status: $echo_status). File: $HISTORY_FILE"
+            log_error_event "Utils" "HISTORY: Write to history file failed (flock not available, echo status: $echo_status). File: $HISTORY_FILE"
             return 1
         fi
         # Log warning about flock missing, but proceed as write was successful
-        log_warn_event "COMMON_UTILS" "HISTORY: 'flock' command not found. Concurrent history writes may be unsafe."
+        log_warn_event "Utils" "HISTORY: 'flock' command not found. Concurrent history writes may be unsafe."
     fi
 
     # If we reached here, it means the write was successful (either with flock or fallback)
-    log_debug_event "COMMON_UTILS" "HISTORY: Recorded entry: $history_entry"
+    log_debug_event "Utils" "HISTORY: Recorded entry: $history_entry"
     return 0
 }
 
@@ -215,15 +215,15 @@ check_available_disk_space() {
     local required_space_kb="$2"
 
     if [[ -z "$dest_path_to_check" ]]; then
-        log_error_event "COMMON_UTILS" "DISK_SPACE: Destination path not provided for check."
+        log_error_event "Utils" "DISK_SPACE: Destination path not provided for check."
         return 1
     fi
     if [[ -z "$required_space_kb" ]] || ! [[ "$required_space_kb" =~ ^[0-9]+$ ]]; then
-         log_error_event "COMMON_UTILS" "DISK_SPACE: Invalid or empty required space '$required_space_kb' provided. Must be a positive integer."
+         log_error_event "Utils" "DISK_SPACE: Invalid or empty required space '$required_space_kb' provided. Must be a positive integer."
          return 1
     fi
     if (( required_space_kb < 0 )); then
-         log_warn_event "COMMON_UTILS" "DISK_SPACE: Negative required space '$required_space_kb' provided. Treating as 0."
+         log_warn_event "Utils" "DISK_SPACE: Negative required space '$required_space_kb' provided. Treating as 0."
          required_space_kb=0
     fi
 
@@ -231,7 +231,7 @@ check_available_disk_space() {
     local df_exit_status=$?
 
     if [[ $df_exit_status -ne 0 ]]; then
-         log_error_event "COMMON_UTILS" "DISK_SPACE: 'df -Pk' command failed for '$dest_path_to_check'. Exit code: $df_exit_status."
+         log_error_event "Utils" "DISK_SPACE: 'df -Pk' command failed for '$dest_path_to_check'. Exit code: $df_exit_status."
          return 1
     fi
 
@@ -239,24 +239,24 @@ check_available_disk_space() {
     local available_space_kb_raw; available_space_kb_raw=$(echo "$df_output" | awk 'NR==2 {print $4}')
 
     if [[ -z "$filesystem" ]]; then
-        log_error_event "COMMON_UTILS" "DISK_SPACE: Could not determine filesystem from 'df -Pk' output for '$dest_path_to_check'."
+        log_error_event "Utils" "DISK_SPACE: Could not determine filesystem from 'df -Pk' output for '$dest_path_to_check'."
         return 1
     fi
 
     if [[ -z "$available_space_kb_raw" ]] || ! [[ "$available_space_kb_raw" =~ ^[0-9]+$ ]]; then
-        log_error_event "COMMON_UTILS" "DISK_SPACE: Could not parse available space from 'df -Pk' output for '$filesystem'. Output format unexpected."
+        log_error_event "Utils" "DISK_SPACE: Could not parse available space from 'df -Pk' output for '$filesystem'. Output format unexpected."
         return 1
     fi
 
     local available_space_kb="$available_space_kb_raw"
 
-    log_debug_event "COMMON_UTILS" "DISK_SPACE: Check for '$dest_path_to_check' (FS: $filesystem): Required: ${required_space_kb} KB, Available: ${available_space_kb} KB."
+    log_debug_event "Utils" "DISK_SPACE: Check for '$dest_path_to_check' (FS: $filesystem): Required: ${required_space_kb} KB, Available: ${available_space_kb} KB."
 
     if (( available_space_kb >= required_space_kb )); then
-        log_debug_event "COMMON_UTILS" "DISK_SPACE: Sufficient disk space available."
+        log_debug_event "Utils" "DISK_SPACE: Sufficient disk space available."
         return 0
     else
-        log_warn_event "COMMON_UTILS" "DISK_SPACE: Insufficient disk space. Required: ${required_space_kb} KB, Available: ${available_space_kb} KB."
+        log_warn_event "Utils" "DISK_SPACE: Insufficient disk space. Required: ${required_space_kb} KB, Available: ${available_space_kb} KB."
         return 1
     fi
 }
@@ -277,7 +277,7 @@ find_executable() {
     local found_path=""
     local IFS_backup="$IFS"
 
-    log_debug_event "COMMON_UTILS" "EXEC_FIND: Looking for executable: '$exe_name' (Hints: '${hint_paths:-N/A}')"
+    log_debug_event "Utils" "EXEC_FIND: Looking for executable: '$exe_name' (Hints: '${hint_paths:-N/A}')"
 
     if [[ -n "$hint_paths" ]]; then
         local current_hint_path_list="$hint_paths"
@@ -293,14 +293,14 @@ find_executable() {
             fi
 
             if [[ -n "$hint_path" ]]; then
-                 log_debug_event "COMMON_UTILS" "EXEC_FIND: Checking hint path: '$hint_path'"
+                 log_debug_event "Utils" "EXEC_FIND: Checking hint path: '$hint_path'"
                 if [[ -x "$hint_path" && "$(basename "$hint_path")" == "$exe_name" ]]; then
                      found_path="$hint_path"
-                     log_debug_event "COMMON_UTILS" "EXEC_FIND: Found in hint path itself: '$found_path'"
+                     log_debug_event "Utils" "EXEC_FIND: Found in hint path itself: '$found_path'"
                      break
                 elif [[ -x "${hint_path}/${exe_name}" ]]; then
                     found_path="${hint_path}/${exe_name}"
-                    log_debug_event "COMMON_UTILS" "EXEC_FIND: Found in hint path directory: '$found_path'"
+                    log_debug_event "Utils" "EXEC_FIND: Found in hint path directory: '$found_path'"
                     break
                 fi
             fi
@@ -308,25 +308,25 @@ find_executable() {
     fi
 
     if [[ -z "$found_path" ]]; then
-        log_debug_event "COMMON_UTILS" "EXEC_FIND: Not found in hints, checking system PATH..."
+        log_debug_event "Utils" "EXEC_FIND: Not found in hints, checking system PATH..."
         local path_cmd_output; path_cmd_output=$(command -v "$exe_name" 2>/dev/null)
         if [[ -n "$path_cmd_output" ]]; then
              found_path="$path_cmd_output"
-             log_debug_event "COMMON_UTILS" "EXEC_FIND: Found in PATH: '$found_path'"
+             log_debug_event "Utils" "EXEC_FIND: Found in PATH: '$found_path'"
         fi
     fi
 
     if [[ -z "$found_path" ]] && [[ "$(uname)" == "Darwin" ]]; then
-         log_debug_event "COMMON_UTILS" "EXEC_FIND: Not found in PATH, checking common macOS locations..."
+         log_debug_event "Utils" "EXEC_FIND: Not found in PATH, checking common macOS locations..."
          if [[ -x "/opt/homebrew/bin/${exe_name}" ]]; then
              found_path="/opt/homebrew/bin/${exe_name}"
-             log_debug_event "COMMON_UTILS" "EXEC_FIND: Found in /opt/homebrew/bin: '$found_path'"
+             log_debug_event "Utils" "EXEC_FIND: Found in /opt/homebrew/bin: '$found_path'"
          elif [[ -x "/usr/local/bin/${exe_name}" ]]; then
              found_path="/usr/local/bin/${exe_name}"
-             log_debug_event "COMMON_UTILS" "EXEC_FIND: Found in /usr/local/bin: '$found_path'"
+             log_debug_event "Utils" "EXEC_FIND: Found in /usr/local/bin: '$found_path'"
          elif [[ -x "/usr/bin/${exe_name}" ]]; then
              found_path="/usr/bin/${exe_name}"
-             log_debug_event "COMMON_UTILS" "EXEC_FIND: Found in /usr/bin: '$found_path'"
+             log_debug_event "Utils" "EXEC_FIND: Found in /usr/bin: '$found_path'"
          fi
     fi
 
@@ -336,7 +336,7 @@ find_executable() {
         echo "$found_path"
         return 0
     else
-        log_error_event "COMMON_UTILS" "CRITICAL: Required command '$exe_name' not found in PATH or specified hint path(s) ('${hint_paths:-N/A}') or common locations. Exiting."
+        log_error_event "Utils" "CRITICAL: Required command '$exe_name' not found in PATH or specified hint path(s) ('${hint_paths:-N/A}') or common locations. Exiting."
         exit 1
     fi
 }
@@ -367,15 +367,15 @@ wait_for_file_stability() {
     fi
 
     if [[ -z "$item_path" ]]; then
-        log_error_event "COMMON_UTILS" "STABILITY: No item path provided for stability check."
+        log_error_event "Utils" "STABILITY: No item path provided for stability check."
         return 1
     fi
     if ! [[ "$max_stable_checks_for_item" =~ ^[0-9]+$ ]] || (( max_stable_checks_for_item < 1 )); then
-         log_warn_event "COMMON_UTILS" "STABILITY: Invalid effective max_stable_checks_for_item '$max_stable_checks_for_item'. Using default 3."
+         log_warn_event "Utils" "STABILITY: Invalid effective max_stable_checks_for_item '$max_stable_checks_for_item'. Using default 3."
          max_stable_checks_for_item=3
     fi
      if ! [[ "$sleep_interval_for_item" =~ ^[0-9]+$ ]] || (( sleep_interval_for_item < 1 )); then
-         log_warn_event "COMMON_UTILS" "STABILITY: Invalid effective sleep_interval_for_item '$sleep_interval_for_item'. Using default 10."
+         log_warn_event "Utils" "STABILITY: Invalid effective sleep_interval_for_item '$sleep_interval_for_item'. Using default 10."
          sleep_interval_for_item=10
     fi
 
@@ -384,11 +384,11 @@ wait_for_file_stability() {
     local current_combined_stat=""
     local stable_count=0
 
-    log_debug_event "COMMON_UTILS" "🕵️‍♂️ Stability check for '$item_basename' ($max_stable_checks_for_item checks, ${sleep_interval_for_item}s interval)..."
+    log_debug_event "Utils" "🕵️‍♂️ Stability check for '$item_basename' ($max_stable_checks_for_item checks, ${sleep_interval_for_item}s interval)..."
 
     for ((i=0; i < max_stable_checks_for_item; i++)); do
         if [[ ! -e "$item_path" ]]; then
-            log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Vanished during stability check (iteration $((i+1)))."
+            log_warn_event "Utils" "⚠️ '$item_basename': Vanished during stability check (iteration $((i+1)))."
             return 1
         fi
 
@@ -407,7 +407,7 @@ wait_for_file_stability() {
                 local find_exit=${PIPESTATUS[0]}
 
                 if [[ $find_exit -ne 0 ]]; then
-                     log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Find failed during size sum (iteration $((i+1))). Exit code $find_exit. Treating as unstable."
+                     log_warn_event "Utils" "⚠️ '$item_basename': Find failed during size sum (iteration $((i+1))). Exit code $find_exit. Treating as unstable."
                      return 1
                 fi
 
@@ -416,7 +416,7 @@ wait_for_file_stability() {
                     local xargs_stat_exit=${PIPESTATUS[0]}
 
                     if [[ $xargs_stat_exit -ne 0 ]]; then
-                        log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Stat failed via xargs during size sum (iteration $((i+1))). Exit code $xargs_stat_exit. Treating as unstable."
+                        log_warn_event "Utils" "⚠️ '$item_basename': Stat failed via xargs during size sum (iteration $((i+1))). Exit code $xargs_stat_exit. Treating as unstable."
                         return 1
                     fi
 
@@ -425,11 +425,11 @@ wait_for_file_stability() {
                         if [[ "$size_line" =~ ^[0-9]+$ ]]; then
                             sum_size=$((sum_size + size_line))
                         else
-                            log_debug_event "COMMON_UTILS" "↳ STABILITY: Skipping non-numeric size line during sum for '$item_basename': '$size_line'"
+                            log_debug_event "Utils" "↳ STABILITY: Skipping non-numeric size line during sum for '$item_basename': '$size_line'"
                         fi
                     done < "$xargs_stat_output_temp"
                 else
-                    log_debug_event "COMMON_UTILS" "↳ '$item_basename' is a directory with no files found by 'find -type f' for size sum."
+                    log_debug_event "Utils" "↳ '$item_basename' is a directory with no files found by 'find -type f' for size sum."
                 fi
                 current_size_bytes="$sum_size"
                 current_mtime=$(stat -f "%m" "$item_path" 2>/dev/null)
@@ -438,13 +438,13 @@ wait_for_file_stability() {
                 local stat_output; stat_output=$(stat -f "%z %m" "$item_path" 2>/dev/null)
                 local stat_exit=$?
                 if [[ $stat_exit -ne 0 ]]; then
-                     log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Stat failed for file (iteration $((i+1))). Exit code $stat_exit. Treating as unstable."
+                     log_warn_event "Utils" "⚠️ '$item_basename': Stat failed for file (iteration $((i+1))). Exit code $stat_exit. Treating as unstable."
                      return 1
                 fi
                 current_size_bytes=$(echo "$stat_output" | awk '{print $1}')
                 current_mtime=$(echo "$stat_output" | awk '{print $2}')
             else
-                log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Not a regular file or directory for stability check. Path: $item_path. Treating as unstable."
+                log_warn_event "Utils" "⚠️ '$item_basename': Not a regular file or directory for stability check. Path: $item_path. Treating as unstable."
                 return 1
             fi
         else
@@ -459,7 +459,7 @@ wait_for_file_stability() {
                  local find_exit=${PIPESTATUS[0]}
 
                 if [[ $find_exit -ne 0 ]]; then
-                     log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Find failed during size sum (iteration $((i+1))). Exit code $find_exit. Treating as unstable."
+                     log_warn_event "Utils" "⚠️ '$item_basename': Find failed during size sum (iteration $((i+1))). Exit code $find_exit. Treating as unstable."
                      return 1
                 fi
 
@@ -468,7 +468,7 @@ wait_for_file_stability() {
                     local xargs_stat_exit=${PIPESTATUS[0]}
 
                     if [[ $xargs_stat_exit -ne 0 ]]; then
-                         log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Stat failed via xargs during size sum (iteration $((i+1))). Exit code $xargs_stat_exit. Treating as unstable."
+                         log_warn_event "Utils" "⚠️ '$item_basename': Stat failed via xargs during size sum (iteration $((i+1))). Exit code $xargs_stat_exit. Treating as unstable."
                          return 1
                     fi
 
@@ -477,11 +477,11 @@ wait_for_file_stability() {
                          if [[ "$size_line" =~ ^[0-9]+$ ]]; then
                             sum_size=$((sum_size + size_line))
                         else
-                             log_debug_event "COMMON_UTILS" "↳ STABILITY: Skipping non-numeric size line during sum for '$item_basename' (GNU stat): '$size_line'"
+                             log_debug_event "Utils" "↳ STABILITY: Skipping non-numeric size line during sum for '$item_basename' (GNU stat): '$size_line'"
                         fi
                     done < "$xargs_stat_output_temp"
                 else
-                     log_debug_event "COMMON_UTILS" "↳ '$item_basename' is a directory with no files found by 'find -type f' for size sum (GNU stat)."
+                     log_debug_event "Utils" "↳ '$item_basename' is a directory with no files found by 'find -type f' for size sum (GNU stat)."
                 fi
                 current_size_bytes="$sum_size"
                 current_mtime=$(stat -c "%Y" "$item_path" 2>/dev/null)
@@ -489,19 +489,19 @@ wait_for_file_stability() {
                 local stat_output; stat_output=$(stat -c "%s %Y" "$item_path" 2>/dev/null)
                 local stat_exit=$?
                  if [[ $stat_exit -ne 0 ]]; then
-                     log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Stat failed for file (iteration $((i+1))) (GNU stat). Exit code $stat_exit. Treating as unstable."
+                     log_warn_event "Utils" "⚠️ '$item_basename': Stat failed for file (iteration $((i+1))) (GNU stat). Exit code $stat_exit. Treating as unstable."
                      return 1
                 fi
                 current_size_bytes=$(echo "$stat_output" | awk '{print $1}')
                 current_mtime=$(echo "$stat_output" | awk '{print $2}')
             else
-                 log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Not a regular file or directory for stability check (GNU stat). Path: $item_path. Treating as unstable."
+                 log_warn_event "Utils" "⚠️ '$item_basename': Not a regular file or directory for stability check (GNU stat). Path: $item_path. Treating as unstable."
                  return 1
             fi
         fi
 
         if [[ -z "$current_size_bytes" ]] || [[ -z "$current_mtime" ]]; then
-             log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Could not determine size/mtime reliably (iteration $((i+1))). Stat output unexpected. Treating as unstable."
+             log_warn_event "Utils" "⚠️ '$item_basename': Could not determine size/mtime reliably (iteration $((i+1))). Stat output unexpected. Treating as unstable."
              return 1
         fi
 
@@ -511,28 +511,28 @@ wait_for_file_stability() {
         if [[ -z "$current_size_display" ]]; then current_size_display="N/A"; fi
 
         if [[ $i -gt 0 && "$current_combined_stat" != "$last_combined_stat" ]]; then
-            log_debug_event "COMMON_UTILS" "↳ '$item_basename': Stat changed. Last: [$last_combined_stat], Current: [$current_combined_stat]. Resetting checks."
+            log_debug_event "Utils" "↳ '$item_basename': Stat changed. Last: [$last_combined_stat], Current: [$current_combined_stat]. Resetting checks."
             stable_count=0
         else
             stable_count=$((stable_count + 1))
         fi
 
-        log_debug_event "COMMON_UTILS" "↳ '$item_basename': Check $((i + 1))/$max_stable_checks_for_item, Display Size: ${current_size_display}, ByteSize:Mtime: [${current_combined_stat}] (Stable count: $stable_count/$max_stable_checks_for_item)"
+        log_debug_event "Utils" "↳ '$item_basename': Check $((i + 1))/$max_stable_checks_for_item, Display Size: ${current_size_display}, ByteSize:Mtime: [${current_combined_stat}] (Stable count: $stable_count/$max_stable_checks_for_item)"
 
         if [[ "$stable_count" -ge "$max_stable_checks_for_item" ]]; then
-            log_info_event "COMMON_UTILS" "✅ '$item_basename': Stable (Display Size: ${current_size_display}, ByteSize:Mtime: [${current_combined_stat}])."
+            log_user_progress "Utils" "✅ '$item_basename': Stable (${current_size_display})"
             return 0
         fi
 
         last_combined_stat="$current_combined_stat"
 
         if [[ $i -lt $((max_stable_checks_for_item - 1)) ]]; then
-            log_debug_event "COMMON_UTILS" "⏳ '$item_basename': Waiting ${sleep_interval_for_item}s..."
+            log_debug_event "Utils" "⏳ '$item_basename': Waiting ${sleep_interval_for_item}s..."
             sleep "$sleep_interval_for_item"
         fi
     done
 
-    log_warn_event "COMMON_UTILS" "⚠️ '$item_basename': Not stable after $max_stable_checks_for_item checks (Last ByteSize:Mtime: [${last_combined_stat}])."
+    log_warn_event "Utils" "⚠️ '$item_basename': Not stable after $max_stable_checks_for_item checks (Last ByteSize:Mtime: [${last_combined_stat}])."
     return 1
 }
 
@@ -546,7 +546,7 @@ wait_for_file_stability() {
 #==============================================================================
 play_sound_notification() {
     local sound_type_or_path="$1"
-    local log_prefix_sound="${2:-SOUND_PLAYER}"
+    local log_prefix_sound="${2:-Utils}"
     local sound_file_to_play=""
 
     if [[ "${SOUND_NOTIFICATION:-false}" != "true" ]]; then
@@ -554,8 +554,7 @@ play_sound_notification() {
     fi
 
     if ! command -v afplay &>/dev/null; then
-        log_warn_event "$log_prefix_sound" "'afplay' command not found. Cannot play sound notification."
-        return 1
+        return 0  # Silently skip - sound not available on this system
     fi
 
     case "$sound_type_or_path" in
@@ -610,27 +609,27 @@ quarantine_item() {
     local reason_for_quarantine="$2"
     local item_basename_for_log; item_basename_for_log=$(basename "$item_to_quarantine_path")
 
-    log_warn_event "COMMON_UTILS" "QUARANTINE: Attempting to quarantine item '$item_basename_for_log' due to: $reason_for_quarantine"
+    log_warn_event "Utils" "QUARANTINE: Attempting to quarantine item '$item_basename_for_log' due to: $reason_for_quarantine"
 
     if [[ -z "$ERROR_DIR" ]]; then
-        log_error_event "COMMON_UTILS" "QUARANTINE: ERROR_DIR is not set in config. Cannot quarantine."
+        log_error_event "Utils" "QUARANTINE: ERROR_DIR is not set in config. Cannot quarantine."
         return 1
     fi
     if [[ ! -d "$ERROR_DIR" ]]; then
-        log_info_event "COMMON_UTILS" "QUARANTINE: Quarantine directory '$ERROR_DIR' does not exist. Creating."
+        log_user_info "Utils" "QUARANTINE: Quarantine directory '$ERROR_DIR' does not exist. Creating."
         if ! mkdir -p "$ERROR_DIR"; then
-            log_error_event "COMMON_UTILS" "QUARANTINE: Failed to create quarantine directory '$ERROR_DIR'. Check permissions."
+            log_error_event "Utils" "QUARANTINE: Failed to create quarantine directory '$ERROR_DIR'. Check permissions."
             return 1
         fi
     fi
     if [[ ! -w "$ERROR_DIR" ]]; then
-         log_error_event "COMMON_UTILS" "QUARANTINE: Quarantine directory '$ERROR_DIR' is not writable. Cannot quarantine."
+         log_error_event "Utils" "QUARANTINE: Quarantine directory '$ERROR_DIR' is not writable. Cannot quarantine."
          return 1
     fi
 
     if [[ ! -e "$item_to_quarantine_path" ]]; then
-        log_warn_event "COMMON_UTILS" "QUARANTINE: Cannot quarantine '$item_basename_for_log': Source path '$item_to_quarantine_path' does not exist or is not accessible."
-        log_info_event "COMMON_UTILS" "QUARANTINE: Source item '$item_to_quarantine_path' not found. Assuming it was already handled or removed. Skipping quarantine move."
+        log_warn_event "Utils" "QUARANTINE: Cannot quarantine '$item_basename_for_log': Source path '$item_to_quarantine_path' does not exist or is not accessible."
+        log_user_info "Utils" "QUARANTINE: Source item '$item_to_quarantine_path' not found. Assuming it was already handled or removed. Skipping quarantine move."
         return 0
     fi
 
@@ -645,19 +644,135 @@ quarantine_item() {
         else
              quarantine_dest_path="${ERROR_DIR}/${dest_basename}${unique_suffix}"
         fi
-        log_warn_event "COMMON_UTILS" "QUARANTINE: Destination '$quarantine_dest_path' exists in quarantine, using unique name."
+        log_warn_event "Utils" "QUARANTINE: Destination '$quarantine_dest_path' exists in quarantine, using unique name."
     fi
 
-    log_info_event "COMMON_UTILS" "QUARANTINE: Moving '$item_basename_for_log' to quarantine '$quarantine_dest_path'..."
+    log_user_info "Utils" "QUARANTINE: Moving '$item_basename_for_log' to quarantine '$quarantine_dest_path'..."
     if mv "$item_to_quarantine_path" "$quarantine_dest_path"; then
-        log_info_event "COMMON_UTILS" "QUARANTINE: Item successfully moved to quarantine: $quarantine_dest_path"
+        log_user_info "Utils" "QUARANTINE: Item successfully moved to quarantine: $quarantine_dest_path"
         record_transfer_to_history "$item_to_quarantine_path -> $quarantine_dest_path (QUARANTINED: $reason_for_quarantine)" || \
-            log_warn_event "COMMON_UTILS" "QUARANTINE: Failed to record quarantine in history."
+            log_warn_event "Utils" "QUARANTINE: Failed to record quarantine in history."
         return 0
     else
-        log_error_event "COMMON_UTILS" "QUARANTINE: Failed to move item to quarantine: '$item_to_quarantine_path' -> '$quarantine_dest_path'. Manual intervention needed."
+        log_error_event "Utils" "QUARANTINE: Failed to move item to quarantine: '$item_to_quarantine_path' -> '$quarantine_dest_path'. Manual intervention needed."
         return 1
     fi
+}
+#==============================================================================
+# Function: rsync_with_network_retry
+# Description: rsync wrapper with retry logic for network destinations.
+#              Uses existing volume detection from doctor_utils.sh for consistency.
+#              Automatically resumes transfers from where they left off on retry.
+# Parameters:
+#   $1: source path
+#   $2: destination path  
+#   $3: rsync options (optional, defaults to "-av --progress --remove-source-files")
+#   $4: max retries (optional, defaults to 3)
+# Returns: rsync exit code (0 on success, non-zero on failure)
+# Side Effects: Logs retry attempts, may create partial files during transfer
+#==============================================================================
+rsync_with_network_retry() {
+    local source_path="$1"
+    local dest_path="$2"
+    local rsync_options="${3:--av --progress --remove-source-files}"
+    local max_retries="${4:-3}"
+    
+    if [[ -z "$source_path" || -z "$dest_path" ]]; then
+        log_error_event "Utils" "rsync_with_network_retry: Source and destination paths required"
+        return 1
+    fi
+    
+    # Use existing volume detection logic from doctor_utils.sh
+    local is_network_dest=false
+    if [[ "$dest_path" == /Volumes/* ]]; then
+        # Check if it's a mounted volume using existing function
+        if command -v is_volume_mounted >/dev/null 2>&1 && is_volume_mounted "$dest_path"; then
+            is_network_dest=true
+            log_debug_event "Utils" "Network volume detected for rsync: $dest_path"
+        else
+            # Volume not mounted - this should be caught earlier by validation
+            log_error_event "Utils" "Volume not mounted for destination: $dest_path"
+            return 1
+        fi
+    fi
+    
+    # For local destinations, use standard rsync
+    if [[ "$is_network_dest" != "true" ]]; then
+        log_debug_event "Utils" "Local destination detected, using standard rsync: $dest_path"
+        rsync $rsync_options "$source_path" "$dest_path"
+        return $?
+    fi
+    
+    # Network destination - use retry logic with resume capability
+    log_debug_event "Utils" "Network destination detected, using retry logic with resume: $dest_path"
+    
+    local attempt=1
+    local retry_delays=(10 30 60)  # Fixed intervals: 10s, 30s, 60s
+    local source_basename
+    source_basename=$(basename "$source_path")
+    
+    # Add --partial flag to rsync options to enable resume capability
+    # Remove --remove-source-files temporarily to prevent source deletion on partial transfers
+    local retry_rsync_options="$rsync_options"
+    local remove_source_on_success=false
+    
+    # Check if --remove-source-files is in the options
+    if [[ "$retry_rsync_options" == *"--remove-source-files"* ]]; then
+        remove_source_on_success=true
+        # Remove it from retry options and add it back only on final success
+        retry_rsync_options=$(echo "$retry_rsync_options" | sed 's/--remove-source-files//g')
+    fi
+    
+    # Always add --partial for resume capability and --timeout if not present
+    if [[ "$retry_rsync_options" != *"--partial"* ]]; then
+        retry_rsync_options="$retry_rsync_options --partial"
+    fi
+    if [[ "$retry_rsync_options" != *"--timeout"* ]]; then
+        retry_rsync_options="$retry_rsync_options --timeout=${RSYNC_TIMEOUT:-300}"
+    fi
+    
+    while [[ $attempt -le $max_retries ]]; do
+        log_user_progress "Utils" "📡 Network transfer attempt $attempt/$max_retries: $source_basename"
+        log_debug_event "Utils" "rsync attempt $attempt/$max_retries: $source_path -> $dest_path"
+        
+        # Use retry options for all attempts
+        if rsync $retry_rsync_options "$source_path" "$dest_path"; then
+            log_user_progress "Utils" "✅ Network transfer succeeded on attempt $attempt: $source_basename"
+            
+            # If transfer succeeded and we need to remove source, do it now
+            if [[ "$remove_source_on_success" == "true" ]]; then
+                log_debug_event "Utils" "Transfer complete, removing source file: $source_path"
+                if rm "$source_path"; then
+                    log_debug_event "Utils" "Successfully removed source file after transfer"
+                else
+                    log_warn_event "Utils" "Transfer completed but failed to remove source file: $source_path"
+                fi
+            fi
+            
+            return 0
+        fi
+        
+        local rsync_exit_code=$?
+        log_warn_event "Utils" "Network transfer attempt $attempt failed (exit code: $rsync_exit_code): $source_basename"
+        
+        if [[ $attempt -lt $max_retries ]]; then
+            local delay=${retry_delays[$((attempt-1))]}
+            log_user_progress "Utils" "⏳ Retrying in ${delay}s... (Network transfer will resume from where it left off)"
+            log_debug_event "Utils" "Waiting ${delay}s before retry attempt $((attempt+1))..."
+            sleep $delay
+        fi
+        
+        ((attempt++))
+    done
+    
+    # All retries failed - show user-friendly message
+    log_error_event "Utils" "❌ Network transfer failed after $max_retries attempts: $source_basename"
+    log_user_info "Utils" "💡 Transfer failed. Please check your network connection and try again."
+    log_user_info "Utils" "   • Verify the network volume is still mounted"
+    log_user_info "Utils" "   • Check network connectivity to your media server"
+    log_user_info "Utils" "   • The transfer will automatically resume from where it stopped"
+    
+    return $rsync_exit_code
 }
 
 #==============================================================================
@@ -670,12 +785,12 @@ quarantine_item() {
 _cleanup_common_utils_temp_files() {
     # shellcheck disable=SC2128 # We want to check array length
     if [[ ${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]} -gt 0 ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO: COMMON_UTILS_TRAP - Cleaning up common_utils temporary files (${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]})..." >&2
+        log_debug_event "Utils" "EXIT trap: Cleaning up common_utils temporary files (${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]})..."
         local temp_file_path_to_clean
         for temp_file_path_to_clean in "${_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]}"; do
             if [[ -n "$temp_file_path_to_clean" && -e "$temp_file_path_to_clean" ]]; then
                 rm -rf "$temp_file_path_to_clean"
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO: COMMON_UTILS_TRAP - Removed '$temp_file_path_to_clean'" >&2
+                log_debug_event "Utils" "EXIT trap: Removed '$temp_file_path_to_clean'"
             fi
         done
     fi

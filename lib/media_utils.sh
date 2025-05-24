@@ -190,24 +190,12 @@ extract_and_sanitize_show_info() {
         fi
     fi
     
-    # Ensure SCRIPT_CURRENT_LOG_LEVEL and LOG_LEVEL_DEBUG are available if logging_utils.sh isn't sourced directly
-    # This is a defensive measure for when this script might be tested or used in isolation.
-    : "${SCRIPT_CURRENT_LOG_LEVEL:=1}" # Default to INFO if not set
-    : "${LOG_LEVEL_DEBUG:=0}"          # Define LOG_LEVEL_DEBUG
-
-    if [[ "${SCRIPT_CURRENT_LOG_LEVEL}" -le "$LOG_LEVEL_DEBUG" ]]; then
-        # Define a simple log_debug_event if not available from logging_utils.sh
-        if ! command -v log_debug_event &> /dev/null; then
-            log_debug_event() { echo "DEBUG: $1 - $2" >&2; }
-        fi
-        log_debug_event "MEDIA_UTILS" "extract_and_sanitize_show_info: Title='$show_title', Year='$year', SE='$season_episode_str' (from '$original_name')"
-    fi
+    # Debug logging for show info extraction (if debug level is enabled)
+    log_debug_event "Media" "extract_and_sanitize_show_info: Title='$show_title', Year='$year', SE='$season_episode_str' (from '$original_name')"
     
     local formatted_string="${show_title:-Unknown Show}###${year:-NOYEAR}###${season_episode_str}"
     
-    if [[ "${SCRIPT_CURRENT_LOG_LEVEL}" -le "$LOG_LEVEL_DEBUG" ]]; then
-        log_debug_event "MEDIA_UTILS" "extract_and_sanitize_show_info: Final output string: '$formatted_string'"
-    fi
+    log_debug_event "Media" "extract_and_sanitize_show_info: Final output string: '$formatted_string'"
     
     echo "$formatted_string"
 }
