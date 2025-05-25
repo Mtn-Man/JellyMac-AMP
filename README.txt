@@ -19,7 +19,7 @@ Copy. Drop. Done.
   
 * Copy a magnet link to your clipboard -> Torrent starts downloading via Transmission  
   
-* Drop or download media files to your designated folder -> Movies and TV shows get sorted and renamed
+* Drop or download media files to your designated folder -> Movies and TV shows get sorted with a clean name
   
 * Zero manual work -> Everything goes to the right place with proper names, server is updated
 

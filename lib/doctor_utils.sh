@@ -285,7 +285,7 @@ is_volume_mounted() {
 # Main validation function, updated with volume mount checks
 validate_config_filepaths() {
     local log_prefix="Doctor"
-    log_user_info "$log_prefix" "🔍 Validating configuration filepaths..."
+    log_user_info "$log_prefix" "🔍 Validating configuration filepaths, this may take a moment..."
     local validation_failed=false
     
     # --- Required Directories ---

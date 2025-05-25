@@ -106,25 +106,25 @@ LAST_LOG_DATE_CHECKED=""       # Used to track if we need to create a new log fi
 # Returns: None
 _delete_old_logs() {
     if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$LOG_DIR" || -z "$LOG_FILE_BASENAME" || -z "$LOG_RETENTION_DAYS" || "$LOG_RETENTION_DAYS" -lt 1 ]]; then
-        # Use log_debug_event from logging_utils.sh as local log_debug isn't fully set up yet
-        log_debug_event "$_WATCHER_LOG_PREFIX" "_delete_old_logs: Rotation not enabled or critical config missing. Skipping."
+        # Use direct echo during initialization to avoid recursion
+        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - DEBUG: _delete_old_logs: Rotation not enabled or critical config missing. Skipping." >&2
         return
     fi
     local retention_days_for_find=$((LOG_RETENTION_DAYS - 1))
     [[ "$retention_days_for_find" -lt 0 ]] && retention_days_for_find=0
-    log_debug_event "$_WATCHER_LOG_PREFIX" "_delete_old_logs: Checking logs older than $LOG_RETENTION_DAYS days in '$LOG_DIR' (base: '$LOG_FILE_BASENAME')."
+    echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - DEBUG: _delete_old_logs: Checking logs older than $LOG_RETENTION_DAYS days in '$LOG_DIR' (base: '$LOG_FILE_BASENAME')." >&2
     if [[ ! -d "$LOG_DIR" ]]; then
-        log_warn_event "$_WATCHER_LOG_PREFIX" "_delete_old_logs: Log directory '$LOG_DIR' not found. Skipping deletion."
+        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - WARN: _delete_old_logs: Log directory '$LOG_DIR' not found. Skipping deletion." >&2
         return
     fi
     local old_log_count
     old_log_count=$(find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -print 2>/dev/null | wc -l)
     if [[ "$old_log_count" -gt 0 ]]; then
-        log_info_event "$_WATCHER_LOG_PREFIX" "_delete_old_logs: Found $old_log_count old log file(s) to delete."
+        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - _delete_old_logs: Found $old_log_count old log file(s) to delete." >&2
         find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -delete
-        log_info_event "$_WATCHER_LOG_PREFIX" "_delete_old_logs: Deletion attempt complete."
+        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - _delete_old_logs: Deletion attempt complete." >&2
     else
-        log_debug_event "$_WATCHER_LOG_PREFIX" "_delete_old_logs: No old log files found."
+        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - DEBUG: _delete_old_logs: No old log files found." >&2
     fi
 }
 
@@ -138,18 +138,22 @@ _ensure_log_file_updated() {
         CURRENT_LOG_FILE_PATH=""
         return
     fi
+    
     local current_date; current_date=$(date +%F)
     if [[ "$current_date" != "$LAST_LOG_DATE_CHECKED" || ! -f "$CURRENT_LOG_FILE_PATH" ]]; then
         LAST_LOG_DATE_CHECKED="$current_date"
         CURRENT_LOG_FILE_PATH="${LOG_DIR}/${LOG_FILE_BASENAME}_${current_date}.log"
-        if ! mkdir -p "$LOG_DIR"; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Failed to create log directory '$LOG_DIR'. Disabling file logging for this session." >&2
-            CURRENT_LOG_FILE_PATH=""
-            LOG_ROTATION_ENABLED="false" # Disable for this session
-            return
+        
+        # Create log directory - succeed or exit
+        mkdir -p "$LOG_DIR"
+        local mkdir_exit_code=$?
+        if [[ $mkdir_exit_code -ne 0 ]]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Failed to create log directory '$LOG_DIR'. Check permissions and filesystem. Exiting." >&2
+            exit 1
         fi
-        # Use log_info_event from logging_utils.sh as local log_info isn't fully set up yet
-        log_info_event "$_WATCHER_LOG_PREFIX" "Log file for today: $CURRENT_LOG_FILE_PATH"
+        
+        # Only print success message if we get here
+        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - Log file for today: $CURRENT_LOG_FILE_PATH" >&2
         _delete_old_logs
     fi
 }

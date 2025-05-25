@@ -23,19 +23,20 @@ sanitize_filename() {
     # Remove leading/trailing whitespace
     sanitized_string=$(echo "$input_string" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-    # Handle specific problematic characters for filenames more carefully
+    # Handle specific problematic characters for filenames
     # Added colon removal, which is important for macOS/Windows compatibility in paths
-    sanitized_string=$(echo "$sanitized_string" | sed \
-        -e 's/|/—/g' \
-        -e 's/&/ and /g' \
-        -e 's/"//g' \
-        -e "s/'//g" \
-        -e 's/://g' \
-        -e 's/[\/\\]/ /g' \
-        -e 's/[*]/ /g' \
-        -e 's/?/ /g' \
-        -e 's/</ /g' \
-        -e 's/>/ /g' )
+    # Using Bash parameter expansion for better performance
+    sanitized_string="${sanitized_string//|/—}"
+    sanitized_string="${sanitized_string//&/ and }"
+    sanitized_string="${sanitized_string//\"/}"
+    sanitized_string="${sanitized_string//\'/}"
+    sanitized_string="${sanitized_string//:/}"
+    sanitized_string="${sanitized_string//\//}"
+    sanitized_string="${sanitized_string//\\/}"
+    sanitized_string="${sanitized_string//\*/ }"
+    sanitized_string="${sanitized_string//\?/ }"
+    sanitized_string="${sanitized_string//</}"
+    sanitized_string="${sanitized_string//>/}"
 
     # Replace multiple spaces with a single space
     sanitized_string=$(echo "$sanitized_string" | tr -s ' ')
@@ -111,7 +112,7 @@ extract_and_sanitize_show_info() {
             season_episode_str="" 
         fi
     else
-        raw_title_part=$(echo "$original_name" | sed -E 's/\.[^.]{2,4}$//') 
+        raw_title_part="${original_name%.*}" 
         season_episode_str=""
     fi
 
@@ -174,7 +175,10 @@ extract_and_sanitize_show_info() {
         elif [[ -n "$season_episode_str" ]]; then # If S/E found but title is still unknown
             # Fallback: use original name part before S/E, minimal cleaning
             show_title_fallback="${original_name%%"${se_match_full}"*}"
-            show_title_fallback=$(echo "$show_title_fallback" | sed -e 's/[._]/ /g' | tr -s ' ' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2)); print}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            # Replace dots and underscores with spaces using parameter expansion
+            show_title_fallback="${show_title_fallback//[._]/ }"
+            # Use external commands for complex operations (space collapse, title case, whitespace trim)
+            show_title_fallback=$(echo "$show_title_fallback" | tr -s ' ' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2)); print}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
             if [[ -n "$show_title_fallback" ]]; then
                 show_title=$(sanitize_filename "$show_title_fallback" "Unknown Show")
                 # Attempt to extract year from this fallback title

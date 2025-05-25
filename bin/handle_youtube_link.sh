@@ -483,6 +483,36 @@ fi
 log_user_progress "YouTube" "Moving '$final_local_filename' to '$DEST_DIR_YOUTUBE'..."
 if ! rsync_with_network_retry "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path" "-av --progress --remove-source-files --timeout=$RSYNC_TIMEOUT"; then
     log_error_event "YouTube" "Failed rsync: '$DOWNLOADED_FILE_FULL_PATH' to '$final_destination_path'."
+    
+    # Remove from download archive since transfer failed - allows retry on next attempt
+    if [[ -n "$DOWNLOAD_ARCHIVE_YOUTUBE" && -f "$DOWNLOAD_ARCHIVE_YOUTUBE" ]]; then
+        # Extract video ID from URL for archive removal using Bash 3.2 parameter expansion
+        video_id=""
+        case "$YOUTUBE_URL" in
+            *"watch?v="*)
+                video_id="${YOUTUBE_URL#*watch?v=}"  # Remove everything before "watch?v="
+                video_id="${video_id%%&*}"           # Remove everything after first "&"
+                ;;
+            *"youtu.be/"*)
+                video_id="${YOUTUBE_URL#*youtu.be/}" # Remove everything before "youtu.be/"
+                video_id="${video_id%%\?*}"          # Remove everything after first "?"
+                ;;
+        esac
+        
+        if [[ -n "$video_id" ]]; then
+            log_debug_event "YouTube" "Extracted video ID for archive cleanup: $video_id"
+            # Remove the video ID from download archive to allow retry
+            if grep -q "youtube $video_id" "$DOWNLOAD_ARCHIVE_YOUTUBE" 2>/dev/null; then
+                # Create backup and remove entry using portable method
+                cp "$DOWNLOAD_ARCHIVE_YOUTUBE" "$DOWNLOAD_ARCHIVE_YOUTUBE.bak"
+                grep -v "youtube $video_id" "$DOWNLOAD_ARCHIVE_YOUTUBE.bak" > "$DOWNLOAD_ARCHIVE_YOUTUBE"
+                log_debug_event "YouTube" "Removed $video_id from download archive due to transfer failure - retry will be possible"
+            fi
+        else
+            log_warn_event "YouTube" "Could not extract video ID from URL for archive cleanup: $YOUTUBE_URL"
+        fi
+    fi
+    
     if [[ -f "$DOWNLOADED_FILE_FULL_PATH" ]]; then 
         quarantine_item "$DOWNLOADED_FILE_FULL_PATH" "rsync_failed_youtube" || log_warn_event "YouTube" "Quarantine failed for '$DOWNLOADED_FILE_FULL_PATH'"; 
     fi

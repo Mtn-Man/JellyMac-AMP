@@ -639,7 +639,7 @@ quarantine_item() {
         local dest_basename; dest_basename="${item_basename_for_log}"
         local dest_ext=""; if [[ -f "$item_to_quarantine_path" ]]; then dest_ext=$(get_file_extension "$item_to_quarantine_path"); fi
         if [[ -n "$dest_ext" ]]; then
-             dest_basename="${item_basename_for_log%${dest_ext}}"
+             dest_basename="${item_basename_for_log%"${dest_ext}"}"
              quarantine_dest_path="${ERROR_DIR}/${dest_basename}${unique_suffix}${dest_ext}"
         else
              quarantine_dest_path="${ERROR_DIR}/${dest_basename}${unique_suffix}"
@@ -682,24 +682,19 @@ rsync_with_network_retry() {
         return 1
     fi
     
-    # Use existing volume detection logic from doctor_utils.sh
+    # Simple network destination detection - trust that doctor validated mounts
     local is_network_dest=false
     if [[ "$dest_path" == /Volumes/* ]]; then
-        # Check if it's a mounted volume using existing function
-        if command -v is_volume_mounted >/dev/null 2>&1 && is_volume_mounted "$dest_path"; then
-            is_network_dest=true
-            log_debug_event "Utils" "Network volume detected for rsync: $dest_path"
-        else
-            # Volume not mounted - this should be caught earlier by validation
-            log_error_event "Utils" "Volume not mounted for destination: $dest_path"
-            return 1
-        fi
+        is_network_dest=true
+        log_debug_event "Utils" "Network destination detected: $dest_path"
+    else
+        log_debug_event "Utils" "Local destination detected: $dest_path"
     fi
     
     # For local destinations, use standard rsync
     if [[ "$is_network_dest" != "true" ]]; then
         log_debug_event "Utils" "Local destination detected, using standard rsync: $dest_path"
-        rsync $rsync_options "$source_path" "$dest_path"
+        rsync "$rsync_options" "$source_path" "$dest_path"
         return $?
     fi
     
@@ -711,32 +706,34 @@ rsync_with_network_retry() {
     local source_basename
     source_basename=$(basename "$source_path")
     
-    # Add --partial flag to rsync options to enable resume capability
-    # Remove --remove-source-files temporarily to prevent source deletion on partial transfers
-    local retry_rsync_options="$rsync_options"
+    # Build retry options array instead of string manipulation
+    local retry_rsync_args=()
     local remove_source_on_success=false
     
-    # Check if --remove-source-files is in the options
-    if [[ "$retry_rsync_options" == *"--remove-source-files"* ]]; then
-        remove_source_on_success=true
-        # Remove it from retry options and add it back only on final success
-        retry_rsync_options=$(echo "$retry_rsync_options" | sed 's/--remove-source-files//g')
-    fi
+    # Parse original options into array
+    local opt
+    for opt in $rsync_options; do
+        if [[ "$opt" == "--remove-source-files" ]]; then
+            remove_source_on_success=true
+            # Skip adding this to retry args
+        else
+            retry_rsync_args+=("$opt")
+        fi
+    done
     
-    # Always add --partial for resume capability and --timeout if not present
-    if [[ "$retry_rsync_options" != *"--partial"* ]]; then
-        retry_rsync_options="$retry_rsync_options --partial"
-    fi
-    if [[ "$retry_rsync_options" != *"--timeout"* ]]; then
-        retry_rsync_options="$retry_rsync_options --timeout=${RSYNC_TIMEOUT:-300}"
-    fi
+    # Add required options
+    retry_rsync_args+=("--partial")
+    retry_rsync_args+=("--timeout=${RSYNC_TIMEOUT:-300}")
     
     while [[ $attempt -le $max_retries ]]; do
         log_user_progress "Utils" "📡 Network transfer attempt $attempt/$max_retries: $source_basename"
         log_debug_event "Utils" "rsync attempt $attempt/$max_retries: $source_path -> $dest_path"
         
-        # Use retry options for all attempts
-        if rsync $retry_rsync_options "$source_path" "$dest_path"; then
+        # DEBUG: Show exactly what rsync will execute
+        log_debug_event "Utils" "DEBUG: rsync args: ${retry_rsync_args[*]}"
+        
+        # Use array expansion for clean argument passing
+        if rsync "${retry_rsync_args[@]}" "$source_path" "$dest_path"; then
             log_user_progress "Utils" "✅ Network transfer succeeded on attempt $attempt: $source_basename"
             
             # If transfer succeeded and we need to remove source, do it now
@@ -759,7 +756,7 @@ rsync_with_network_retry() {
             local delay=${retry_delays[$((attempt-1))]}
             log_user_progress "Utils" "⏳ Retrying in ${delay}s... (Network transfer will resume from where it left off)"
             log_debug_event "Utils" "Waiting ${delay}s before retry attempt $((attempt+1))..."
-            sleep $delay
+            sleep "$delay"
         fi
         
         ((attempt++))
@@ -772,7 +769,7 @@ rsync_with_network_retry() {
     log_user_info "Utils" "   • Check network connectivity to your media server"
     log_user_info "Utils" "   • The transfer will automatically resume from where it stopped"
     
-    return $rsync_exit_code
+    return "$rsync_exit_code"
 }
 
 #==============================================================================

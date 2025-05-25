@@ -31,7 +31,38 @@ AUTO_CREATE_MISSING_DIRS="true"  # [Values: true, false] [Default: true]
 # [Concurrent Processing] - Maximum number of simultaneous media processors
 MAX_CONCURRENT_PROCESSORS="2"  # [Range: 1-5] [Default: 2]
                                # Controls how many files can be processed simultaneously
+                               
+#==============================================================================
+# LOGGING & HISTORY
+#==============================================================================
+# Settings controlling log file generation, rotation, and history tracking.
+# These help with troubleshooting and tracking processed media.
 
+# --- Logging Settings ---
+# [Log Level] - Controls verbosity of log messages
+LOG_LEVEL="INFO"  # [Values: DEBUG, INFO, WARN, ERROR] [Default: INFO]
+                 # DEBUG = Most verbose, ERROR = Least verbose
+
+# [Log Rotation] - Enable automatic log file rotation
+LOG_ROTATION_ENABLED="true"  # [Values: true, false] [Default: true]
+                            # Prevents logs from growing too large on disk
+
+# [Log Directory] - Where log files will be stored
+LOG_DIR="${JELLYMAC_PROJECT_ROOT}/logs"  # [Required if rotation enabled]
+                                        # Directory will be created if it doesn't exist
+
+# [Log Filename] - Base name for log files
+LOG_FILE_BASENAME="jellymac_automator_log"  # [Required if rotation enabled]
+                                           # Date/time will be appended automatically
+
+# [Log Retention] - How long to keep log files before deletion
+LOG_RETENTION_DAYS="7"  # [Units: days] [Range: 1-365] [Default: 7]
+                       # Older log files will be automatically deleted
+
+# --- History File ---
+# [History File] - Tracks all processed media items
+HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"  # [Required]
+                                                              # Set to /dev/null to disable history
 #==============================================================================
 # MEDIA PATHS
 #==============================================================================
@@ -210,37 +241,6 @@ SOUND_INPUT_DETECTED_FILE="/System/Library/Sounds/Funk.aiff"  # Played when new 
 SOUND_TASK_SUCCESS_FILE="/System/Library/Sounds/Glass.aiff"   # Played on successful task completion
 SOUND_TASK_ERROR_FILE="/System/Library/Sounds/Basso.aiff"     # Played when an error occurs
 
-#==============================================================================
-# LOGGING & HISTORY
-#==============================================================================
-# Settings controlling log file generation, rotation, and history tracking.
-# These help with troubleshooting and tracking processed media.
-
-# --- Logging Settings ---
-# [Log Level] - Controls verbosity of log messages
-LOG_LEVEL="INFO"  # [Values: DEBUG, INFO, WARN, ERROR] [Default: INFO]
-                 # DEBUG = Most verbose, ERROR = Least verbose
-
-# [Log Rotation] - Enable automatic log file rotation
-LOG_ROTATION_ENABLED="true"  # [Values: true, false] [Default: true]
-                            # Prevents logs from growing too large on disk
-
-# [Log Directory] - Where log files will be stored
-LOG_DIR="${JELLYMAC_PROJECT_ROOT}/logs"  # [Required if rotation enabled]
-                                        # Directory will be created if it doesn't exist
-
-# [Log Filename] - Base name for log files
-LOG_FILE_BASENAME="jellymac_automator_log"  # [Required if rotation enabled]
-                                           # Date/time will be appended automatically
-
-# [Log Retention] - How long to keep log files before deletion
-LOG_RETENTION_DAYS="7"  # [Units: days] [Range: 1-365] [Default: 7]
-                       # Older log files will be automatically deleted
-
-# --- History File ---
-# [History File] - Tracks all processed media items
-HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"  # [Required]
-                                                              # Set to /dev/null to disable history
 
 #==============================================================================
 # ADVANCED / CUSTOM TOOL PATHS
