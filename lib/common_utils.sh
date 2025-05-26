@@ -596,6 +596,64 @@ play_sound_notification() {
 }
 
 #==============================================================================
+# Function: transfer_local_file
+# Description: Simple local file transfer using mv. For known good files on local storage.
+# Parameters:
+#   $1: source path
+#   $2: destination path
+#   $3: log prefix (optional, defaults to "Utils")
+# Returns: 0 on success, 1 on failure
+#==============================================================================
+transfer_local_file() {
+    local source_path="$1"
+    local dest_path="$2"
+    local log_prefix="${3:-Utils}"
+    
+    local source_basename; source_basename=$(basename "$source_path")
+    
+    log_debug_event "$log_prefix" "Local transfer: '$source_path' -> '$dest_path'"
+    
+    if mv "$source_path" "$dest_path"; then
+        log_debug_event "$log_prefix" "Local transfer successful: '$source_basename'"
+        return 0
+    else
+        local mv_exit_code=$?
+        log_error_event "$log_prefix" "Failed to move '$source_basename' to destination (exit code: $mv_exit_code)"
+        return 1
+    fi
+}
+
+#==============================================================================
+# Function: transfer_file_smart
+# Description: Smart file transfer - uses transfer_local_file for local paths,
+#              rsync_with_network_retry for network paths (/Volumes/*)
+# Parameters:
+#   $1: source path
+#   $2: destination path
+#   $3: log prefix (optional, defaults to "Utils")
+# Returns: 0 on success, 1 on failure
+#==============================================================================
+transfer_file_smart() {
+    local source_path="$1"
+    local dest_path="$2"
+    local log_prefix="${3:-Utils}"
+    
+    if [[ -z "$source_path" || -z "$dest_path" ]]; then
+        log_error_event "$log_prefix" "transfer_file_smart: Source and destination paths required"
+        return 1
+    fi
+    
+    # Use same detection logic as rsync_with_network_retry for consistency
+    if [[ "$dest_path" == /Volumes/* ]]; then
+        log_debug_event "$log_prefix" "Network destination detected, using rsync with retry"
+        rsync_with_network_retry "$source_path" "$dest_path" "-av --progress --remove-source-files"
+    else
+        log_debug_event "$log_prefix" "Local destination detected, using local transfer"
+        transfer_local_file "$source_path" "$dest_path" "$log_prefix"
+    fi
+}
+
+#==============================================================================
 # Function: quarantine_item
 # Description: Moves a failed or problematic item to the error/quarantine directory.
 # Parameters:

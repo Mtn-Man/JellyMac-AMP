@@ -12,8 +12,8 @@
 # - Can fully automate the media aquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: 0.1.3
-# Last Updated: 2025-05-24
+# Version: 0.1.4
+# Last Updated: 2025-05-26
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -45,6 +45,7 @@ STATE_DIR="${SCRIPT_DIR}/.state" # For lock files, temporary scan files etc.
 # --- Source Essential Libraries (Order Matters) ---
 # 1. Logging Utilities (provides primitive log functions)
 # shellcheck source=lib/logging_utils.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/logging_utils.sh"
 
 # 2. Configuration (defines LOG_LEVEL, paths, features)
@@ -52,6 +53,7 @@ source "${SCRIPT_DIR}/lib/logging_utils.sh"
 CONFIG_FILE_NAME="jellymac_config.sh" # Or "jellymac_config.sh" if you didn't rename it
 if [[ -f "${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}" ]]; then
     # shellcheck source=lib/jellymac_config.sh
+    # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}"
 else
     # Use primitive echo for this critical early error
@@ -75,14 +77,17 @@ export SCRIPT_CURRENT_LOG_LEVEL
 
 # 4. Common Utilities (provides play_sound_notification, find_executable, etc.)
 # shellcheck source=lib/common_utils.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common_utils.sh"
 
 # 5. Doctor Utilities (Health Checks)
 # shellcheck source=lib/doctor_utils.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/doctor_utils.sh"
 
 # 6. Media Utilities (for determine_media_category by watcher if needed)
 # shellcheck source=lib/media_utils.sh
+# shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/media_utils.sh"
 
 # --- Paths to Helper Scripts in bin/ ---
@@ -106,25 +111,18 @@ LAST_LOG_DATE_CHECKED=""       # Used to track if we need to create a new log fi
 # Returns: None
 _delete_old_logs() {
     if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$LOG_DIR" || -z "$LOG_FILE_BASENAME" || -z "$LOG_RETENTION_DAYS" || "$LOG_RETENTION_DAYS" -lt 1 ]]; then
-        # Use direct echo during initialization to avoid recursion
-        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - DEBUG: _delete_old_logs: Rotation not enabled or critical config missing. Skipping." >&2
         return
     fi
     local retention_days_for_find=$((LOG_RETENTION_DAYS - 1))
     [[ "$retention_days_for_find" -lt 0 ]] && retention_days_for_find=0
-    echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - DEBUG: _delete_old_logs: Checking logs older than $LOG_RETENTION_DAYS days in '$LOG_DIR' (base: '$LOG_FILE_BASENAME')." >&2
+    
     if [[ ! -d "$LOG_DIR" ]]; then
-        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - WARN: _delete_old_logs: Log directory '$LOG_DIR' not found. Skipping deletion." >&2
         return
     fi
     local old_log_count
     old_log_count=$(find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -print 2>/dev/null | wc -l)
     if [[ "$old_log_count" -gt 0 ]]; then
-        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - _delete_old_logs: Found $old_log_count old log file(s) to delete." >&2
         find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -delete
-        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - _delete_old_logs: Deletion attempt complete." >&2
-    else
-        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - DEBUG: _delete_old_logs: No old log files found." >&2
     fi
 }
 
@@ -227,20 +225,26 @@ _log_to_file_and_console() {
 # Returns: None
 # Side Effects: Writes to CURRENT_LOG_FILE_PATH if file logging is enabled
 _log_to_current_file() {
+    # shellcheck disable=SC2317
     local required_level_num="$1"
+    # shellcheck disable=SC2317
     local prefix="$2" 
+    # shellcheck disable=SC2317
     local message="$3"
-    
     # Only log if file logging is enabled and path is valid
+    # shellcheck disable=SC2317
     if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$CURRENT_LOG_FILE_PATH" ]]; then
         return
     fi
     
     # Ensure log file path is current (handles rotation)
+    # shellcheck disable=SC2317
     _ensure_log_file_updated
     
     # Convert numeric level to severity label for file
+    # shellcheck disable=SC2317
     local severity_label
+    # shellcheck disable=SC2317
     case "$required_level_num" in
         "$LOG_LEVEL_DEBUG") severity_label="DEBUG:" ;;
         "$LOG_LEVEL_INFO")  severity_label="" ;;
@@ -250,10 +254,14 @@ _log_to_current_file() {
     esac
     
     # Construct file log message
+    # shellcheck disable=SC2317
     local file_log_message
+    # shellcheck disable=SC2317
     file_log_message="${prefix} $(date '+%Y-%m-%d %H:%M:%S') - ${severity_label} ${message}"
     
     # Write to file with flock protection (same pattern as existing code)
+    # Use flock to ensure safe concurrent writes
+    # shellcheck disable=SC2317
     if command -v flock >/dev/null 2>&1; then
         exec 200>>"$CURRENT_LOG_FILE_PATH"
         if flock -w 0.5 200; then
@@ -299,7 +307,9 @@ _acquire_lock() {
     log_user_info "JellyMac" "Instance lock acquired: $LOCK_FILE"
 }
 _release_lock() {
+    # shellcheck disable=SC2317
     log_debug "Releasing instance lock: $LOCK_FILE"
+    # shellcheck disable=SC2317
     if [[ -n "$LOCK_FILE" ]]; then 
         exec 201>&- # Close file descriptor
         # rm -f "$LOCK_FILE" # Optional: remove lock file, flock releases advisory lock anyway
@@ -353,7 +363,9 @@ _SHUTDOWN_IN_PROGRESS=""
 # Parameters: None
 # Returns: None
 _cleanup_jellymac_temp_files() {
+    #shellcheck disable=SC2317
     log_debug "Cleaning up jellymac.sh specific temp files..."
+    #shellcheck disable=SC2317
     log_debug "No specific jellymac.sh temp files to clean in this version beyond what functions manage themselves."
 }
 # Function: graceful_shutdown_and_cleanup
@@ -361,33 +373,50 @@ _cleanup_jellymac_temp_files() {
 # Parameters: None
 # Returns: None (exits the script)
 # Note: Registered as a trap for SIGINT, SIGTERM, and EXIT signals
+# We make heavy use of shellcheck disable=SC2317 to prevent false positives in shutdown functions
 graceful_shutdown_and_cleanup() {
     # Prevent duplicate execution
+    #shellcheck disable=SC2317
     if [[ "$_SHUTDOWN_IN_PROGRESS" == "true" ]]; then
         return
     fi
+    #shellcheck disable=SC2317
     _SHUTDOWN_IN_PROGRESS="true"
-    
-    echo; log_user_shutdown "JellyMac" "👋 Exiting JellyMac AMP..." 
-
+    # shellcheck disable=SC2317
+    echo 
+    # shellcheck disable=SC2317
+    log_user_shutdown "JellyMac" "👋 Exiting JellyMac AMP..." 
+    #shellcheck disable=SC2317
     if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" > /dev/null; then
         log_user_info "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
         kill "$CAFFEINATE_PROCESS_ID" 2>/dev/null || log_warn_event "JellyMac" "Caffeinate PID $CAFFEINATE_PROCESS_ID not found or already exited."
     fi
-
+    #shellcheck disable=SC2317
     log_user_info "JellyMac" "Terminating any active child processors..."
-    local old_ifs="$IFS"; IFS='|'
+    #shellcheck disable=SC2317
+    local old_ifs="$IFS" 
+    #shellcheck disable=SC2317
+    IFS='|'
+    # shellcheck disable=SC2317
     local script_name_killed 
+    # shellcheck disable=SC2317
     set -f 
     # Bash 3.2 compatible: Use explicit string replacement then array assignment
+    # shellcheck disable=SC2317
     local processor_string_modified
+    # shellcheck disable=SC2317
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
     # shellcheck disable=SC2206 
+    # shellcheck disable=SC2317
     local p_info_array=($processor_string_modified)
+    # shellcheck disable=SC2317
     set +f 
+    # shellcheck disable=SC2317
     IFS="$old_ifs"
+    # shellcheck disable=SC2317
     local entry_count=${#p_info_array[@]}
 
+    # shellcheck disable=SC2317
     if [[ $entry_count -gt 0 && $((entry_count % 4)) -eq 0 ]]; then
         for ((idx=0; idx<entry_count; idx+=4)); do
             local pid_to_kill="${p_info_array[idx]}"
@@ -402,14 +431,21 @@ graceful_shutdown_and_cleanup() {
         log_warn_event "JellyMac" "Could not parse _ACTIVE_PROCESSOR_INFO_STRING for child process cleanup: '$_ACTIVE_PROCESSOR_INFO_STRING'"
     fi
     
+    # shellcheck disable=SC2317
     _release_lock 
     
+    # shellcheck disable=SC2317
     if command -v _cleanup_common_utils_temp_files >/dev/null 2>&1; then
         _cleanup_common_utils_temp_files 
     fi
+    # shellcheck disable=SC2317
     _cleanup_jellymac_temp_files   
 
-    printf "\033]0;%s\007" "${SHELL##*/}"; log_user_info "JellyMac" "JellyMac AMP shutdown complete." 
+    # shellcheck disable=SC2317
+    printf "\033]0;%s\007" "${SHELL##*/}" 
+    # shellcheck disable=SC2317
+    log_user_info "JellyMac" "JellyMac AMP shutdown complete." 
+    # shellcheck disable=SC2317
     exit 0 
 }
 trap graceful_shutdown_and_cleanup SIGINT SIGTERM EXIT
@@ -680,7 +716,7 @@ fi
 _acquire_lock # Ensure only one instance of JellyMac runs at a time
 
 log_user_start "JellyMac" "JellyMac AMP Starting..."
-log_user_info "JellyMac" "Version: 0.1.3 ($(date '+%Y-%m-%d %H:%M:%S'))"  
+log_user_info "JellyMac" "Version: 0.1.4 ($(date '+%Y-%m-%d %H:%M:%S'))"
 log_user_info "JellyMac" "   Project Root: $JELLYMAC_PROJECT_ROOT"
 log_user_info "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then

@@ -21,19 +21,28 @@ LIB_DIR="$(cd "${SCRIPT_DIR}/../lib" && pwd)" # Assumes lib is one level up from
 # Returns: None
 #==============================================================================
 _cleanup_script_temp_files() {
-    # shellcheck disable=SC2317 
+    # shellcheck disable=SC2317
     if [[ ${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]} -gt 0 ]]; then
-        echo "INFO: $(date '+%Y-%m-%d %H:%M:%S') - [${SCRIPT_NAME}_TRAP] Cleaning up temporary files (${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]})..." >&2
+        log_debug_event "YouTube" "EXIT trap: Cleaning up temporary files (${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]})..."
         local temp_file_to_clean 
         for temp_file_to_clean in "${_SCRIPT_TEMP_FILES_TO_CLEAN[@]}"; do
             if [[ -n "$temp_file_to_clean" && -e "$temp_file_to_clean" ]]; then
-                rm -f "$temp_file_to_clean" 
-                echo "INFO: $(date '+%Y-%m-%d %H:%M:%S') - [${SCRIPT_NAME}_TRAP] Removed '$temp_file_to_clean'" >&2
+                if rm -f "$temp_file_to_clean"; then
+                    log_debug_event "YouTube" "EXIT trap: Removed '$temp_file_to_clean'"
+                else
+                    log_error_event "YouTube" "EXIT trap: Failed to remove '$temp_file_to_clean' - check permissions"
+                fi
             fi
         done
     fi
     # shellcheck disable=SC2317
     _SCRIPT_TEMP_FILES_TO_CLEAN=()
+    
+    # CRITICAL: Always call library cleanup
+    # shellcheck disable=SC2317
+    if command -v _cleanup_common_utils_temp_files >/dev/null 2>&1; then
+        _cleanup_common_utils_temp_files
+    fi
 }
 trap _cleanup_script_temp_files EXIT SIGINT SIGTERM
 
@@ -479,10 +488,10 @@ if ! check_available_disk_space "${DEST_DIR_YOUTUBE}" "$file_size_kb"; then
     exit 1
 fi
 
-# Transfer file to final destination using rsync
+# Transfer file to final destination using smart transfer function
 log_user_progress "YouTube" "Moving '$final_local_filename' to '$DEST_DIR_YOUTUBE'..."
-if ! rsync_with_network_retry "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path" "-av --progress --remove-source-files --timeout=$RSYNC_TIMEOUT"; then
-    log_error_event "YouTube" "Failed rsync: '$DOWNLOADED_FILE_FULL_PATH' to '$final_destination_path'."
+if ! transfer_file_smart "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path" "YouTube"; then
+    log_error_event "YouTube" "Failed transfer: '$DOWNLOADED_FILE_FULL_PATH' to '$final_destination_path'."
     
     # Remove from download archive since transfer failed - allows retry on next attempt
     if [[ -n "$DOWNLOAD_ARCHIVE_YOUTUBE" && -f "$DOWNLOAD_ARCHIVE_YOUTUBE" ]]; then

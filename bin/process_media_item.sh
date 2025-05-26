@@ -46,6 +46,10 @@ _cleanup_process_media_item_temp_files() {
         done
     fi
     _PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN=()
+     # CRITICAL: Always call library cleanup if common_utils is sourced
+    if command -v _cleanup_common_utils_temp_files >/dev/null 2>&1; then
+        _cleanup_common_utils_temp_files
+    fi
 }
 trap _cleanup_process_media_item_temp_files EXIT SIGINT SIGTERM
 
@@ -358,12 +362,12 @@ _processor_move_media_and_associated_files() {
     fi
 
     log_user_progress "Processing" "📁 Moving: $main_media_source_basename"
-    log_debug_event "Processing" "Moving main media file (using rsync --remove-source-files):"
+    log_debug_event "Processing" "Moving main media file (using smart transfer):"
     log_debug_event "Processing" "  FROM: '$main_media_file_source_path'"
     log_debug_event "Processing" "  TO:   '$final_main_media_dest_path'"
 
-   if ! rsync_with_network_retry "$main_media_file_source_path" "$final_main_media_dest_path" "-av --progress --remove-source-files --timeout=$RSYNC_TIMEOUT"; then
-        log_warn_event "Processing" "rsync failed for main media file '$main_media_file_source_path'."
+   if ! transfer_file_smart "$main_media_file_source_path" "$final_main_media_dest_path" "Processing"; then
+        log_warn_event "Processing" "transfer failed for main media file '$main_media_file_source_path'."
         PROCESSOR_EXIT_CODE=1 
         return 1 
     fi
@@ -407,8 +411,8 @@ _processor_move_media_and_associated_files() {
             final_assoc_file_dest_path="$(dirname "$final_main_media_dest_path")/${new_assoc_filename}"
 
             log_info_event "Processing" "Moving associated file '$assoc_file_basename' to '$final_assoc_file_dest_path'..."
-            if ! rsync -av --progress --remove-source-files "$current_assoc_file_source_path" "$final_assoc_file_dest_path"; then
-                log_warn_event "Processing" "Failed to rsync associated file '$assoc_file_basename'. It remains at source."
+            if ! transfer_file_smart "$current_assoc_file_source_path" "$final_assoc_file_dest_path" "Processing"; then
+                log_warn_event "Processing" "Failed to transfer associated file '$assoc_file_basename'. It remains at source."
             else
                 record_transfer_to_history "$current_assoc_file_source_path -> $final_assoc_file_dest_path ($determined_category - Assoc.)"
             fi
