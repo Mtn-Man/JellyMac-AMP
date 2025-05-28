@@ -84,21 +84,27 @@ YTDLP_EXECUTABLE=$(find_executable "yt-dlp" "${YTDLP_PATH:-}")
 : "${YTDLP_FORMAT:?YT_HANDLER: YTDLP_FORMAT for YouTube not set in config.}"
 : "${RSYNC_TIMEOUT:=300}"
 
-# Validate and create required directories with write permissions
-for dir_var_name_check in LOCAL_DIR_YOUTUBE DEST_DIR_YOUTUBE; do
-    current_dir_path="${!dir_var_name_check}" 
-    if [[ ! -d "$current_dir_path" ]]; then
-        log_debug_event "YouTube" "Creating directory '$current_dir_path'..."
-        if ! mkdir -p "$current_dir_path"; then 
-            log_error_event "YouTube" "Failed to create dir '$current_dir_path'. Check permissions."
-            exit 1; 
-        fi
-    fi
-    if [[ ! -w "$current_dir_path" ]]; then 
-        log_error_event "YouTube" "Dir '$current_dir_path' not writable."
+# Validate LOCAL_DIR_YOUTUBE (local path)
+if [[ ! -d "$LOCAL_DIR_YOUTUBE" ]]; then
+    log_debug_event "YouTube" "Creating local directory '$LOCAL_DIR_YOUTUBE'..."
+    if ! mkdir -p "$LOCAL_DIR_YOUTUBE"; then 
+        log_error_event "YouTube" "Failed to create local dir '$LOCAL_DIR_YOUTUBE'. Check permissions."
         exit 1; 
     fi
-done
+fi
+if [[ ! -w "$LOCAL_DIR_YOUTUBE" ]]; then 
+    log_error_event "YouTube" "Local dir '$LOCAL_DIR_YOUTUBE' not writable."
+    exit 1; 
+fi
+
+# Validate DEST_DIR_YOUTUBE (network-aware)
+if ! validate_network_volume_before_transfer "$DEST_DIR_YOUTUBE" "YouTube"; then
+    log_error_event "YouTube" "Network destination unavailable: $DEST_DIR_YOUTUBE"
+    log_user_info "YouTube" "💡 Please reconnect to your media server and try again"
+        # Add error sound notification
+    play_sound_notification "task_error" "YouTube"
+    exit 1
+fi
 
 if ! check_available_disk_space "${LOCAL_DIR_YOUTUBE}" "10240"; then # 10MB
     log_error_event "YouTube" "Insufficient disk space in '$LOCAL_DIR_YOUTUBE'."

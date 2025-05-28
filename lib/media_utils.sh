@@ -9,6 +9,28 @@
 # Logging within these functions should be minimal (e.g., debug logs if necessary),
 # allowing the calling script (process_media_item.sh) to handle main logging.
 
+#==============================================================================
+# Function: is_valid_media_year
+# Description: Validates if a year is within reasonable range for media content
+# Parameters: $1: Year to validate (4-digit string)
+# Returns: 0 if valid, 1 if invalid
+#==============================================================================
+is_valid_media_year() {
+    local year_to_check="$1"
+    
+    # Check if it's a 4-digit number
+    if [[ ! "$year_to_check" =~ ^[0-9]{4}$ ]]; then
+        return 1
+    fi
+    
+    # Check if within valid range (1920-2029)
+    if [[ "$year_to_check" -ge 1920 && "$year_to_check" -le 2029 ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Function to sanitize a string for use as a valid filename.
 # Replaces common problematic characters with underscores or removes them.
 # Arguments:
@@ -135,7 +157,7 @@ extract_and_sanitize_show_info() {
         local potential_title_part="${BASH_REMATCH[1]}"
         local potential_year="${BASH_REMATCH[2]}"
         local season_keyword_regex_at_end='(s[0-9]+|season[._ ]?[0-9]+)$'
-        if ! [[ "$potential_title_part" =~ $season_keyword_regex_at_end ]] && [[ ${#potential_title_part} -gt 2 ]]; then
+        if ! [[ "$potential_title_part" =~ $season_keyword_regex_at_end ]] && [[ ${#potential_title_part} -gt 2 ]] && is_valid_media_year "$potential_year"; then
             show_title="$potential_title_part" 
             year="$potential_year"
         fi
@@ -157,7 +179,7 @@ extract_and_sanitize_show_info() {
                  if [[ "$show_title" =~ $year_regex ]]; then 
                      local pt="${BASH_REMATCH[1]}"; local py="${BASH_REMATCH[2]}"
                      local sk_regex_end='(s[0-9]+|season[._ ]?[0-9]+)$'
-                     if ! [[ "$pt" =~ $sk_regex_end ]] && [[ ${#pt} -gt 2 ]]; then
+                     if ! [[ "$pt" =~ $sk_regex_end ]] && [[ ${#pt} -gt 2 ]] && is_valid_media_year "$py"; then
                          show_title="$pt"; 
                          year="$py";    
                      fi
@@ -185,7 +207,7 @@ extract_and_sanitize_show_info() {
                 if [[ "$show_title" =~ $year_regex ]]; then
                     local pt_fb="${BASH_REMATCH[1]}"; local py_fb="${BASH_REMATCH[2]}"
                     local sk_regex_end_fb='(s[0-9]+|season[._ ]?[0-9]+)$'
-                    if ! [[ "$pt_fb" =~ $sk_regex_end_fb ]] && [[ ${#pt_fb} -gt 2 ]]; then
+                    if ! [[ "$pt_fb" =~ $sk_regex_end_fb ]] && [[ ${#pt_fb} -gt 2 ]] && is_valid_media_year "$py_fb"; then
                         show_title="$pt_fb";
                         year="$py_fb";
                     fi
@@ -212,6 +234,12 @@ extract_and_sanitize_movie_info() {
     local filename="$1"
     local name_no_ext="${filename%.*}"
     local name_spaced="${name_no_ext//[._]/ }"
+    
+    # Clean brackets and parentheses at start/end (like TV show function)
+    name_spaced=$(echo "$name_spaced" | sed -E \
+        -e 's/^[\[\(][^\]\)]*[\]\)]//g' \
+        -e 's/[\[\(][^\]\)]*[\]\)]$//g' \
+    )
     
     local tag_regex="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\\.1|AAC|AC3|x265|x264|HEVC|H\\.264|H\\.265|REMUX|NeoNoir}"
     

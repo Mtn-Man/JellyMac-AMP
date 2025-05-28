@@ -559,7 +559,7 @@ play_sound_notification() {
 
     case "$sound_type_or_path" in
         "input_detected")
-            sound_file_to_play="${SOUND_INPUT_DETECTED_FILE:-/System/Library/Sounds/Submarine.aiff}"
+            sound_file_to_play="${SOUND_INPUT_DETECTED_FILE:-/System/Library/Sounds/Funk.aiff}"
             ;;
         "task_success")
             sound_file_to_play="${SOUND_TASK_SUCCESS_FILE:-/System/Library/Sounds/Glass.aiff}"
@@ -643,6 +643,11 @@ transfer_file_smart() {
         return 1
     fi
     
+    # Validate network volumes before transfer
+    if ! validate_network_volume_before_transfer "$dest_path" "$log_prefix"; then
+        return 1
+    fi
+    
     # Use same detection logic as rsync_with_network_retry for consistency
     if [[ "$dest_path" == /Volumes/* ]]; then
         log_debug_event "$log_prefix" "Network destination detected, using rsync with retry"
@@ -716,6 +721,7 @@ quarantine_item() {
         return 1
     fi
 }
+
 #==============================================================================
 # Function: rsync_with_network_retry
 # Description: rsync wrapper with retry logic for network destinations.
@@ -828,6 +834,98 @@ rsync_with_network_retry() {
     log_user_info "Utils" "   • The transfer will automatically resume from where it stopped"
     
     return "$rsync_exit_code"
+}
+
+#==============================================================================
+# Function: validate_network_volume_before_transfer
+# Description: Validates network volumes are mounted and accessible before transfer
+# Parameters:
+#   $1: Destination path to validate
+#   $2: Log prefix (optional, defaults to "Utils")
+# Returns: 0 if valid or local path, 1 if network volume unavailable
+#==============================================================================
+validate_network_volume_before_transfer() {
+    local dest_path="$1"
+    local log_prefix="${2:-Utils}"
+    
+    # Skip validation for local paths
+    if [[ "$dest_path" != /Volumes/* ]]; then
+        return 0
+    fi
+    
+    # Extract volume name
+    local volume_name
+    if [[ "$dest_path" =~ ^/Volumes/([^/]+) ]]; then
+        volume_name="${BASH_REMATCH[1]}"
+    else
+        log_error_event "$log_prefix" "Invalid /Volumes/ path format: $dest_path"
+        return 1
+    fi
+    
+    # Check if volume is mounted
+    if [[ ! -d "/Volumes/$volume_name" ]]; then
+        log_error_event "$log_prefix" "Volume '$volume_name' is no longer mounted"
+        log_user_info "$log_prefix" "💔 Network share disconnected: '$volume_name'"
+        log_user_info "$log_prefix" "🔗 To reconnect: Finder → Cmd+K → reconnect to server"
+        
+        return 1
+    fi
+    
+    # Extract destination directory (not the full file path)
+    local dest_dir
+    if [[ -f "$dest_path" || "$dest_path" == */* ]]; then
+        dest_dir="$(dirname "$dest_path")"
+    else
+        dest_dir="$dest_path"
+    fi
+    
+    # Check if destination directory exists and is writable
+    if [[ ! -d "$dest_dir" ]] || [[ ! -w "$dest_dir" ]]; then
+        log_error_event "$log_prefix" "Destination directory unavailable: $dest_dir"
+        log_user_info "$log_prefix" "💔 Media folder inaccessible on '$volume_name'"
+        
+        # Play error sound for access issues
+        play_sound_notification "task_error" "$log_prefix"
+        
+        return 1
+    fi
+    
+    return 0
+}
+
+#==============================================================================
+# Function: send_desktop_notification
+# Description: Sends macOS desktop notification with title, message, and optional sound
+# Parameters:
+#   $1: Notification title
+#   $2: Notification message  
+#   $3: Sound name (optional, defaults to "Purr")
+# Returns: None
+# Side Effects: Displays macOS notification if enabled and on Darwin platform
+#==============================================================================
+send_desktop_notification() {
+    local title="$1"; local message="$2"; local sound_name="${3:-Purr}"
+
+    if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" != "true" || "$(uname)" != "Darwin" ]]; then return; fi
+    
+    # Find osascript command
+    local osascript_cmd
+    osascript_cmd=$(find_executable "osascript" "")
+    if [[ "$osascript_cmd" == "NOT_FOUND" ]]; then return; fi
+
+    # Validate required parameters
+    if [[ -z "$title" || -z "$message" ]]; then
+        log_warn_event "Notification" "send_desktop_notification called with missing title or message parameters. Skipping notification."
+        return
+    fi
+
+    local safe_title; safe_title=$(echo "$title" | sed 's/\\/\\\\/g; s/"/\\"/g' | head -c 100)
+    local safe_message; safe_message=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g' | head -c 200)
+    local osascript_command_str="display notification \"${safe_message}\" with title \"${safe_title}\""
+    if [[ -n "$sound_name" ]]; then osascript_command_str+=" sound name \"${sound_name}\""; fi
+
+    log_debug_event "Notification" "Sending desktop notification: Title='${title}', Message='${message}'"
+    "$osascript_cmd" -e "$osascript_command_str" >/dev/null 2>&1 &
 }
 
 #==============================================================================

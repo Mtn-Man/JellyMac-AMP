@@ -339,7 +339,7 @@ _processor_move_media_and_associated_files() {
     main_media_source_basename=$(basename "$main_media_file_source_path")
     local main_media_source_ext         
     main_media_source_ext="$(get_file_extension "$main_media_source_basename")" 
-    local final_main_media_dest_path="${final_dest_template}${main_media_source_ext}" 
+    final_main_media_dest_path="${final_dest_template}${main_media_source_ext}" 
 
     _processor_create_safe_destination_path "$final_main_media_dest_path"
 
@@ -463,7 +463,7 @@ _processor_process_as_movie() {
         return 1 
     fi
 
-    log_user_complete "Processing" "🎬 Movie organized: $final_movie_folder_name"
+    log_user_complete "Processing" "🎬 Movie organized: Movies/${final_movie_folder_name}/"
     if [[ "${ENABLE_JELLYFIN_SCAN_MOVIES:-false}" == "true" ]]; then 
         trigger_jellyfin_library_scan "Movies" 
     fi
@@ -513,16 +513,16 @@ _processor_process_as_show() {
     if [[ ${#episode_num} -gt 2 ]]; then padded_episode_num="$episode_num"; fi 
 
     # For TV shows, each episode usually gets its own subfolder for better organization of multiple files (video, subs, nfo)
-    local episode_subfolder_name="${show_name} - S${season_num}E${padded_episode_num}"
+    local episode_subfolder_name="${show_name} S${season_num}E${padded_episode_num}"
     episode_filename_radix="${show_name} - S${season_num}E${padded_episode_num}" 
     final_dest_template="${DEST_DIR_SHOWS}/${final_show_folder_name}/${season_folder_name}/${episode_subfolder_name}/${episode_filename_radix}"
 
     if ! _processor_move_media_and_associated_files "$item_path" "$final_dest_template" "Shows" "true"; then
-        log_warn_event "Processing" "Failed to fully process show '$original_item_name' (move media failed)."
+        log_warn_event "Processing" "Failed to fully process show '$original_item_name' (moving file failed)."
         return 1 
     fi
 
-    log_user_complete "Processing" "📺 TV Show organized: ${show_name} S${season_num}E${padded_episode_num}"
+    log_user_complete "Processing" "📺 TV Show organized: Shows/${final_show_folder_name}/${season_folder_name}/${episode_subfolder_name}/"
     if [[ "${ENABLE_JELLYFIN_SCAN_SHOWS:-false}" == "true" ]]; then 
         trigger_jellyfin_library_scan "Shows" 
     fi
@@ -608,7 +608,9 @@ SECS=$((ELAPSED_SECONDS % 60))
 original_item_basename_for_log=$(basename "$MAIN_ITEM_PATH")
 
 if [[ "$PROCESSOR_EXIT_CODE" -eq 0 ]]; then
-    log_user_complete "Processing" "✨ Successfully processed: $(basename "$MAIN_ITEM_PATH") (${MINS}m${SECS}s)"
+    # Get the main media filename that was just organized
+    organized_filename="$(basename "${final_main_media_dest_path:-$(basename "$MAIN_ITEM_PATH")}")"
+    log_user_complete "Processing" "✨ Successfully processed: $organized_filename (${MINS}m${SECS}s)"
     play_sound_notification "task_success" "Processing"
 elif [[ "$PROCESSOR_EXIT_CODE" -eq 2 ]]; then 
     log_warn_event "Processing" "🟡 Item quarantined: $(basename "$MAIN_ITEM_PATH") (${MINS}m${SECS}s)"

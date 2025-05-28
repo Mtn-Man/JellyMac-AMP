@@ -20,7 +20,8 @@ logs/
 # Ignore backups of config file
 lib/jellymac_config.sh.bak
 
-# Also, as discussed, you'll want to add:
 .yt_download_archive.txt
 
 .yt_download_archive.txt.bak
+
+lib/organizer_utils.sh

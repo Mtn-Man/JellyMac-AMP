@@ -25,7 +25,7 @@ ENABLE_CLIPBOARD_YOUTUBE="true"         # Watch clipboard for YouTube links? (tr
 SOUND_NOTIFICATION="true"               # Play sounds for events? (true/false)
 
 ################################################################################
-# ⚙️  SYSTEM CONFIGURATION (Carefully adjust these settings - things may break!)
+# ⚙️  SYSTEM CONFIGURATION (Works well with defaults - modify only if needed)
 ################################################################################
 
 # === CRITICAL EARLY-LOADING VARIABLES (DO NOT MOVE) ===

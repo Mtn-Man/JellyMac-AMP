@@ -1,4 +1,8 @@
-================================================================= JellyMac AMP Configuration Guide
+=================================================================
+JellyMac AMP Configuration Guide
+=================================================================
+
+Welcome to the JellyMac AMP configuration guide!
 This guide explains the settings available in the
 lib/jellymac_config.sh file. This file is crucial for
 customizing JellyMac AMP to your specific setup and
@@ -74,6 +78,17 @@ Values:
 - "false": Disable. The script will error and exit if
 configured paths are not found.
 
+MAX_CONCURRENT_PROCESSORS
+Purpose: Controls how many media items can be processed 
+simultaneously. Higher values can speed up batch processing
+but use more system resources.
+Units: Number of concurrent processes
+Range: 1-10 (recommended)
+Default: 2
+Note: Consider your system's CPU cores and available RAM.
+Network-attached storage may benefit from lower values
+to avoid overwhelming the connection.
+
                        MEDIA PATHS
 
 Define the source and destination locations for your media.
@@ -145,7 +160,7 @@ Purpose: A list of file extensions that JellyMac AMP
 recognizes as primary video media files to be processed.
 Format: Array of strings, e.g., (".mkv" ".mp4")
 Default: Includes common video formats like ".mkv",
-".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts".
+".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm".
 Required: Yes. Ensure your common media file types are
 listed.
 
@@ -203,6 +218,24 @@ Range: 1-60 (recommended)
 Default: 10
 Impact: Total stability wait time = STABLE_CHECKS *
 STABLE_SLEEP_INTERVAL.
+
+PERFORM_POST_TRANSFER_DELETE
+Purpose: Controls whether source files are automatically
+deleted after successful transfer to their destination.
+Values: 
+- "true": Delete source files after successful processing (default)
+- "false": Keep source files in place
+Note: Files are only deleted if the transfer was verified
+successful and POST_TRANSFER_DELETE_DELAY has elapsed.
+
+POST_TRANSFER_DELETE_DELAY
+Purpose: Time to wait (in seconds) after a successful
+transfer before deleting the source files. This provides
+a safety buffer to verify the transfer completed properly.
+Units: Seconds
+Range: 10-300 (recommended)
+Default: 30
+Note: Only applies when PERFORM_POST_TRANSFER_DELETE is "true".
 
                   JELLYFIN INTEGRATION
 
@@ -409,6 +442,15 @@ Default: "/System/Library/Sounds/Basso.aiff"
 
 Control log file generation, rotation, and history tracking.
 
+STATE_DIR
+Purpose: Directory where JellyMac AMP stores its runtime
+state files, including the single-instance lock file and
+temporary processing state.
+Required: Yes
+Default: "${JELLYMAC_PROJECT_ROOT}/.state"
+Note: Created automatically if needed and 
+AUTO_CREATE_MISSING_DIRS is "true". Must be writable.
+
 LOG_LEVEL
 Purpose: Controls the verbosity of messages logged to the
 console and, if enabled, to log files.
@@ -442,9 +484,9 @@ and AUTO_CREATE_MISSING_DIRS is "true".
 LOG_FILE_BASENAME
 Purpose: The base name for log files. The date will be
 appended to this name (e.g.,
-jellymac_automator_log_YYYY-MM-DD.log).
+jellymac_amp_log_YYYY-MM-DD.log).
 Required: Yes, if LOG_ROTATION_ENABLED is "true".
-Default: "jellymac_automator_log"
+Default: "jellymac_amp_log"
 
 LOG_RETENTION_DAYS
 Purpose: How many days to keep old log files before they
@@ -499,4 +541,4 @@ Note: ffmpeg is not actively used by the current core
 scripts provided but might be useful for future custom
 scripts or planned features.
 
-================================================================= End of Configuration Guide
+=================================================================

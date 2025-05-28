@@ -83,7 +83,7 @@ SECURITY NOTE:
      - Do NOT run this script as root (sudo is not
        needed or recommended).
      - Protect your API keys; never share them.
-     - This is ALPHA software that manages files.
+     - This is BETA software that manages files.
        ALWAYS KEEP BACKUPS OF IMPORTANT FILES AND MEDIA!
      - While tested, there's a small risk of data
        loss – be warned.
@@ -128,7 +128,7 @@ INSTALLATION
   1. Get the Files:
        Open Terminal and run each command:
          Run: cd ~
-         Run: git clone [YOUR_REPOSITORY_URL_HERE] JellyMac_AMP
+         Run: git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
          Run: cd JellyMac_AMP
          Run: chmod +x jellymac.sh bin/*.sh
 
@@ -218,7 +218,7 @@ FIRST RUN & USAGE
        Then run the script:  ./jellymac.sh
 
   3. Use It:
-       - Drop media files/folders into your `DROP_FOLDER`.
+       - Dropor download media files/folders into your `DROP_FOLDER`.
        - Copy YouTube URLs to your clipboard.
        - Copy magnet links to your clipboard.
        - Watch the Terminal window for progress logs.
@@ -293,6 +293,7 @@ JellyMac AMP is under active development. Planned features:
   - YouTube playlist support.
   - Enhanced metadata extraction.
   - Improved file recognition and filtering.
+  - Youtube -> .mp3 options
 
 Current development is focused on polishing existing
 functionality. Your feedback is valuable, if you find bugs

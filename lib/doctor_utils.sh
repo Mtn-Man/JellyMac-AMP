@@ -25,12 +25,12 @@ install_missing_dependency() {
     
     # Check if Homebrew is installed
     if ! command -v brew >/dev/null 2>&1; then
-        log_warn_event "$log_prefix" "Homebrew not found. Cannot auto-install dependencies."
+        log_warn_event "$log_prefix" "Homebrew not found. Cannot auto-install programs."
         log_warn_event "$log_prefix" "Please install Homebrew from https://brew.sh/ to enable auto-installation."
         return 1
     fi
     
-    log_user_info "$log_prefix" "🍺 Auto-installing dependency: $package_name"
+    log_user_info "$log_prefix" "🍺 Auto-installing program: $package_name"
     
     # Attempt to install the package
     if brew install "$package_name"; then
@@ -138,7 +138,7 @@ handle_missing_dependencies_interactively() {
     echo -e "\033[1mWe noticed this is your first time running JellyMac AMP.\033[0m"
     echo "Before we can start automating your media library, we need to set up a few things."
     echo
-    echo -e "\033[33mMissing Dependencies:\033[0m"
+    echo -e "\033[33mMissing Programs:\033[0m"
     
     # Print each missing dependency with package info
     for ((i=0; i<${#missing_deps[@]}; i++)); do
@@ -147,13 +147,13 @@ handle_missing_dependencies_interactively() {
     done
     
     echo
-    echo "These tools are required for JellyMac AMP to work properly with your media files."
+    echo "These helper programs are needed for JellyMac AMP to work properly with your media files."
     echo
     
     # Present options
     echo -e "\033[1mHow would you like to proceed?\033[0m"
-    echo -e "  \033[32m1)\033[0m Install dependencies now (one-time installation)"
-    echo -e "  \033[32m2)\033[0m Enable automatic dependency installation (permanent)"
+    echo -e "  \033[32m1)\033[0m Install missing programs now (just this once)"
+    echo -e "  \033[32m2)\033[0m Automatically install missing programs in the future (recommended)"
     echo -e "  \033[32m3)\033[0m Skip and continue anyway (some features may not work)"
     echo -e "  \033[32m4)\033[0m Exit and read the Getting Started guide first"
     echo
@@ -164,7 +164,7 @@ handle_missing_dependencies_interactively() {
     
     case "$selection" in
         1)  # Install dependencies now (one-time)
-            echo -e "\033[1mInstalling dependencies for this run only...\033[0m"
+            echo -e "\033[1mInstalling programs for this run only...\033[0m"
             AUTO_INSTALL_DEPENDENCIES="true"
             install_missing_dependencies "${missing_deps[@]}"
             local install_status=$?
@@ -172,7 +172,7 @@ handle_missing_dependencies_interactively() {
             
             if [[ $install_status -eq 0 ]]; then
                 echo
-                echo -e "\033[32m✓\033[0m Successfully installed all dependencies!"
+                echo -e "\033[32m✓\033[0m Successfully installed all programs!"
                 echo "JellyMac AMP will now continue with startup..."
                 echo
                 sleep 2
@@ -182,7 +182,7 @@ handle_missing_dependencies_interactively() {
             ;;
             
         2)  # Enable automatic installation (permanent)
-            echo -e "\033[1mEnabling automatic dependency installation...\033[0m"
+            echo -e "\033[1mEnabling automatic program installation...\033[0m"
             
             # Update the config file
             local config_file="${LIB_DIR}/jellymac_config.sh"
@@ -208,10 +208,10 @@ handle_missing_dependencies_interactively() {
                 
                 if [[ $install_status -eq 0 ]]; then
                     echo
-                    echo -e "\033[32m✓\033[0m Successfully installed all dependencies!"
+                    echo -e "\033[32m✓\033[0m Successfully installed all programs!"
                     echo "JellyMac AMP will now continue with startup..."
                     echo
-                    echo "In the future, any missing dependencies will be installed automatically."
+                    echo "In the future, any missing programs will be installed automatically."
                     sleep 2
                 fi
                 
@@ -223,8 +223,8 @@ handle_missing_dependencies_interactively() {
             ;;
             
         3)  # Skip and continue
-            log_user_info "$log_prefix" "⚠️  Continuing without required dependencies. Some features may not work correctly."
-            echo "You can install the missing dependencies later by running:"
+            log_user_info "$log_prefix" "⚠️  Continuing without required programs. Some features may not work correctly."
+            echo "You can install the missing programs later by running:"
             echo "  brew install ${missing_deps[*]}"
             echo
             sleep 2
@@ -238,7 +238,7 @@ handle_missing_dependencies_interactively() {
             echo -e "  \033[36m$JELLYMAC_PROJECT_ROOT/JellyMac_Getting_Started.txt\033[0m"
             echo
             echo "This guide will walk you through:"
-            echo "  • Setting up all required dependencies"
+            echo "  • Setting up all required programs for JellyMac AMP to work properly"
             echo "  • Configuring your media folders"
             echo "  • Connecting to your Jellyfin server"
             echo "  • And more!"
@@ -301,7 +301,7 @@ validate_config_filepaths() {
     # These can be empty or missing, but if specified must be valid
     local optional_dirs=(
         "${DEST_DIR_YOUTUBE:-}"     "Destination folder for YouTube downloads (optional)"
-        "${TEMP_DIR:-}"             "Temporary processing directory (optional)"
+        "${TEMP_DIR:-}"             "Temporary processing folder (optional)"
     )
     
     # Check each required directory
@@ -310,7 +310,7 @@ validate_config_filepaths() {
         local description="${required_dirs[i+1]}"
         
         if [[ -z "$dir" ]]; then
-            log_error_event "$log_prefix" "❌ Required directory path is empty: $description"
+            log_error_event "$log_prefix" "❌ Required folder path is empty: $description"
             log_user_info "$log_prefix" "Please set this path in your jellymac_config.sh file."
             validation_failed=true
             continue
@@ -320,8 +320,9 @@ validate_config_filepaths() {
         if [[ "$dir" == /Volumes/* ]] && ! is_volume_mounted "$dir"; then
             local volume_name
             [[ "$dir" =~ ^/Volumes/([^/]+) ]] && volume_name="${BASH_REMATCH[1]}"
-            log_error_event "$log_prefix" "❌ Volume '$volume_name' is not mounted for: $dir ($description)"
-            log_user_info "$log_prefix" "Please mount the volume '$volume_name' and try again."
+            log_error_event "$log_prefix" "❌ Network folder '$volume_name' is not connected for: $dir ($description)"
+            log_user_info "$log_prefix" "To connect: Open Finder → Go menu → Connect to Server (⌘K)"
+            log_user_info "$log_prefix" "Or check if '$volume_name' appears in Finder's sidebar under 'Network'."
             validation_failed=true
             continue
         fi
@@ -330,23 +331,29 @@ validate_config_filepaths() {
             # Only attempt to create directories if NOT in /Volumes or if volume is mounted
             if [[ "$dir" != "/Volumes/"* ]] || is_volume_mounted "$dir"; then
                 if [[ "${AUTO_CREATE_MISSING_DIRS:-false}" == "true" ]]; then
-                    log_warn_event "$log_prefix" "⚠️ Directory does not exist, creating: $dir ($description)"
+                    log_warn_event "$log_prefix" "⚠️ Folder does not exist, creating: $dir ($description)"
                     if ! mkdir -p "$dir"; then
-                        log_error_event "$log_prefix" "❌ Failed to create directory: $dir"
+                        log_error_event "$log_prefix" "❌ Could not create folder: $dir"
                         if [[ "$dir" == /Volumes/* ]]; then
-                            log_user_info "$log_prefix" "This may be due to permissions on the network volume. Check volume access rights."
+                            log_user_info "$log_prefix" "This might be due to permission settings on the network folder."
+                            log_user_info "$log_prefix" "Try creating the folder manually in Finder first."
+                        else
+                            log_user_info "$log_prefix" "This might happen if:"
+                            log_user_info "$log_prefix" "  • You don't have permission to create folders here"
+                            log_user_info "$log_prefix" "  • The parent folder doesn't exist"
+                            log_user_info "$log_prefix" "Try creating the folder manually in Finder first."
                         fi
                         validation_failed=true
                     fi
                 else
-                    log_error_event "$log_prefix" "❌ Directory does not exist: $dir ($description)"
-                    log_user_info "$log_prefix" "Create this directory manually or set AUTO_CREATE_MISSING_DIRS=true in config."
+                    log_error_event "$log_prefix" "❌ Folder does not exist: $dir ($description)"
+                    log_user_info "$log_prefix" "Create this folder manually in Finder or set AUTO_CREATE_MISSING_DIRS=true in config."
                     validation_failed=true
                 fi
             fi
         elif [[ ! -w "$dir" ]]; then
-            log_error_event "$log_prefix" "❌ Directory is not writable: $dir ($description)"
-            log_user_info "$log_prefix" "Please check permissions on this directory."
+            log_error_event "$log_prefix" "❌ folder is not writable: $dir ($description)"
+            log_user_info "$log_prefix" "Please check permissions on this folder."
             validation_failed=true
         fi
     done
@@ -358,7 +365,7 @@ validate_config_filepaths() {
         
         # Skip empty optional paths
         if [[ -z "$dir" ]]; then
-            log_debug_event "$log_prefix" "Optional directory not configured: $description"
+            log_debug_event "$log_prefix" "Optional folder not configured: $description"
             continue
         fi
         
@@ -366,8 +373,8 @@ validate_config_filepaths() {
         if [[ "$dir" == /Volumes/* ]] && ! is_volume_mounted "$dir"; then
             local volume_name
             [[ "$dir" =~ ^/Volumes/([^/]+) ]] && volume_name="${BASH_REMATCH[1]}"
-            log_warn_event "$log_prefix" "⚠️ Volume '$volume_name' is not mounted for optional: $dir ($description)"
-            log_user_info "$log_prefix" "Mount the volume '$volume_name' if you want to use this feature."
+            log_warn_event "$log_prefix" "⚠️ Network folder '$volume_name' is not connected for optional feature: $dir ($description)"
+            log_user_info "$log_prefix" "Connect '$volume_name' in Finder if you want to use this feature."
             # Don't mark as failure for optional dirs, just warn
             continue
         fi
@@ -376,23 +383,23 @@ validate_config_filepaths() {
             # Only attempt to create directories if NOT in /Volumes or if volume is mounted
             if ! [[ "$dir" =~ ^/Volumes/ ]] || is_volume_mounted "$dir"; then
                 if [[ "${AUTO_CREATE_MISSING_DIRS:-false}" == "true" ]]; then
-                    log_warn_event "$log_prefix" "⚠️ Optional directory does not exist, creating: $dir ($description)"
+                    log_warn_event "$log_prefix" "⚠️ Optional folder does not exist, creating: $dir ($description)"
                     if ! mkdir -p "$dir"; then
-                        log_error_event "$log_prefix" "❌ Failed to create optional directory: $dir"
+                        log_error_event "$log_prefix" "❌ Failed to create optional folder: $dir"
                         if [[ "$dir" == /Volumes/* ]]; then
-                            log_user_info "$log_prefix" "This may be due to permissions on the network volume. Check volume access rights."
+                            log_user_info "$log_prefix" "This may be due to permissions on the network folder. Check the folder's access rights."
                         fi
                         validation_failed=true
                     fi
                 else
-                    log_warn_event "$log_prefix" "⚠️ Optional directory does not exist: $dir ($description)"
-                    log_user_info "$log_prefix" "Create this directory manually or set AUTO_CREATE_MISSING_DIRS=true in config."
+                    log_warn_event "$log_prefix" "⚠️ Optional folder does not exist: $dir ($description)"
+                    log_user_info "$log_prefix" "Create this folder manually or set AUTO_CREATE_MISSING_DIRS=true in config."
                     # Don't mark as failure for optional dirs
                 fi
             fi
         elif [[ ! -w "$dir" ]]; then
-            log_error_event "$log_prefix" "❌ Optional directory is not writable: $dir ($description)"
-            log_user_info "$log_prefix" "Please check permissions on this directory."
+            log_error_event "$log_prefix" "❌ Optional folder is not writable: $dir ($description)"
+            log_user_info "$log_prefix" "Please check permissions on this folder."
             validation_failed=true
         fi
     done
@@ -426,11 +433,11 @@ check_transmission_daemon() {
     local transmission_cli="${TORRENT_CLIENT_CLI_PATH:-transmission-remote}"
     local transmission_host="${TRANSMISSION_REMOTE_HOST:-localhost:9091}"
     
-    log_debug_event "$log_prefix" "Checking if Transmission daemon is running..."
+    log_debug_event "$log_prefix" "Checking if Transmission background service is running..."
     
     # Try to connect to Transmission daemon
     if ! "$transmission_cli" "$transmission_host" --list >/dev/null 2>&1; then
-        log_warn_event "$log_prefix" "⚠️ Transmission daemon appears to be offline."
+        log_warn_event "$log_prefix" "⚠️ Transmission background service appears to be offline."
         
         # Verify that transmission is actually installed before offering to enable it
         if command -v transmission-daemon >/dev/null 2>&1 || brew list transmission >/dev/null 2>&1; then
@@ -442,7 +449,7 @@ check_transmission_daemon() {
             return 1
         fi
     else
-        log_debug_event "$log_prefix" "✅ Transmission daemon is running and accessible."
+        log_debug_event "$log_prefix" "✅ Transmission background service is running and accessible."
         return 0
     fi
 }
@@ -458,8 +465,8 @@ offer_transmission_service_enablement() {
     local log_prefix="Doctor"
     
     echo
-    echo -e "\033[33m⚠️  Transmission daemon is not running\033[0m"
-    echo "Magnet link handling requires the Transmission daemon to be active."
+    echo -e "\033[33m⚠️  Transmission background service is not running\033[0m"
+    echo "Magnet link handling requires the Transmission background service to be active."
     echo
     echo -e "\033[1mWould you like to enable Transmission as a background service?\033[0m"
     echo "This will allow Transmission to start automatically on login."
@@ -492,10 +499,21 @@ offer_transmission_service_enablement() {
                 sleep 2
                 
                 if "$transmission_cli" "$transmission_host" --list >/dev/null 2>&1; then
-                    log_user_info "$log_prefix" "✅ Transmission daemon is now accessible"
+                    log_user_info "$log_prefix" "✅ Transmission background service is now accessible"
+                    log_user_info "" # Add a blank line for spacing
+                    log_user_info "$log_prefix" "⚙️ IMPORTANT: Configure Transmission's Download Location!"
+                    local web_portal_url="http://${transmission_host}"
+                    log_user_info "$log_prefix" "   1. Click this link to open Transmission: ${web_portal_url}"
+                    log_user_info "$log_prefix" "   2. Click the hamburger menu (≡) at the top right"
+                    log_user_info "$log_prefix" "   3. Select 'Edit Preferences' from the menu"
+                    log_user_info "$log_prefix" "   4. In the Downloads section, set Download location to:"
+                    log_user_info "$log_prefix" "   ${DROP_FOLDER}"
+                    log_user_info "$log_prefix" "   5. When done, you can safely close the Transmission window"
+                    log_user_info "$log_prefix" "   This allows JellyMac to automatically process your downloads!"
+                    log_user_info "$log_prefix" "   See 'JellyMac_Getting_Started.txt' for advanced options."
                     return 0
                 else
-                    log_warn_event "$log_prefix" "⚠️ Transmission service started but daemon is still not accessible"
+                    log_warn_event "$log_prefix" "⚠️ Transmission service started but background service is still not accessible"
                     echo -e "\033[33m⚠️  Transmission service was started but may need more time to initialize\033[0m"
                     echo "Please check its status manually in a few moments."
                     return 1
@@ -510,8 +528,19 @@ offer_transmission_service_enablement() {
             
         *)  # Any other input is considered "no"
             log_user_info "$log_prefix" "User declined to start Transmission service"
-            echo -e "\033[33m⚠️  Magnet link handling will be unavailable until Transmission is running\033[0m"
-            echo "You can start it manually later with: brew services start transmission"
+            log_warn_event "$log_prefix" "⚠️ Magnet link handling will be unavailable until Transmission is running"
+            log_user_info "$log_prefix" "You can start it manually later with: brew services start transmission"
+            log_user_info "$log_prefix" ""  # Blank line for spacing
+            log_user_info "$log_prefix" "⚙️ REMINDER: When Transmission is running, configure its download location!"
+            local web_portal_url="http://${transmission_host}"
+            log_user_info "$log_prefix" "   1. Click this link to open Transmission: ${web_portal_url}"
+            log_user_info "$log_prefix" "   2. Click the hamburger menu (≡) at the top right"
+            log_user_info "$log_prefix" "   3. Select 'Edit Preferences' from the menu"
+            log_user_info "$log_prefix" "   4. In the Downloads section, set the Download location to:"
+            log_user_info "$log_prefix" "   ${DROP_FOLDER}"
+            log_user_info "$log_prefix" "   5. Once added, you can safely close the Transmission window"
+            log_user_info "$log_prefix" "   This enables full end-to-end automation for torrents."
+            log_user_info "$log_prefix" "   See 'JellyMac_Getting_Started.txt' for more details on configuration."
             return 1
             ;;
     esac
@@ -561,12 +590,12 @@ perform_system_health_checks() {
         if [[ $missing_count -gt 0 ]]; then
             for dep in "${missing_deps[@]}"; do
                 if [[ " ${REQUIRED_DEPENDENCIES[*]} " == *" ${dep} "* ]]; then
-                    log_error_event "$log_prefix" "Critical dependency '$dep' still missing. Exiting."
+                    log_error_event "$log_prefix" "Critical program '$dep' still missing. Exiting."
                     exit 1
                 fi
             done
             # If we got here, only optional dependencies are missing
-            log_warn_event "$log_prefix" "Some optional dependencies are still missing. Some features may not work."
+            log_warn_event "$log_prefix" "Some optional programs are still missing. Some features may not work."
             any_optional_missing=true
         fi
     fi
@@ -574,9 +603,9 @@ perform_system_health_checks() {
     # Check if auto-installation is enabled and Homebrew is available
     if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
         if command -v brew >/dev/null 2>&1; then
-            log_user_info "$log_prefix" "Auto-dependency installation is enabled and Homebrew is available."
+            log_user_info "$log_prefix" "Automatic program installation is enabled and Homebrew is available."
         else
-            log_warn_event "$log_prefix" "Auto-dependency installation is enabled but Homebrew is not found."
+            log_warn_event "$log_prefix" "Automatic program installation is enabled but Homebrew is not found."
             log_warn_event "$log_prefix" "Please install Homebrew from https://brew.sh/ to enable auto-installation."
         fi
     fi
@@ -586,18 +615,18 @@ perform_system_health_checks() {
     # So, if the script proceeds past these checks, the commands were found.
 
     # Check for flock and attempt to install it if missing
-    log_debug_event "$log_prefix" "Checking dependency: flock"
+    log_debug_event "$log_prefix" "Checking program: flock"
     if ! command -v flock >/dev/null 2>&1; then
         if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
             log_user_info "$log_prefix" "flock not found, attempting to install..."
             if install_missing_dependency "flock"; then
                 log_user_info "$log_prefix" "Successfully installed flock"
             else
-                log_error_event "$log_prefix" "Failed to install flock and it's a required dependency. Exiting."
+                log_error_event "$log_prefix" "Failed to install flock and it's a required programs. Exiting."
                 exit 1
             fi
         else
-            log_error_event "$log_prefix" "flock not found. This is a required dependency. Install with: brew install flock"
+            log_error_event "$log_prefix" "flock not found. This is a required program. Install with: brew install flock"
             log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
             exit 1
         fi
@@ -608,7 +637,7 @@ perform_system_health_checks() {
     find_executable "rsync" >/dev/null # Exits if not found, suppress output
 
     if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
-        log_debug_event "$log_prefix" "Checking dependency for YouTube: yt-dlp"
+        log_debug_event "$log_prefix" "Checking for YouTube: yt-dlp"
         if ! command -v yt-dlp >/dev/null 2>&1; then
             if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
                 log_user_info "$log_prefix" "yt-dlp not found, attempting to install..."
@@ -629,7 +658,7 @@ perform_system_health_checks() {
     if [[ "${ENABLE_TORRENT_AUTOMATION:-false}" == "true" && -n "${TORRENT_CLIENT_CLI_PATH:-}" ]]; then
         local torrent_client_exe
         torrent_client_exe=$(basename "${TORRENT_CLIENT_CLI_PATH}")
-        log_debug_event "$log_prefix" "Checking dependency for Torrents: $torrent_client_exe (from TORRENT_CLIENT_CLI_PATH)"
+        log_debug_event "$log_prefix" "Checking for Torrents program: $torrent_client_exe (from TORRENT_CLIENT_CLI_PATH)"
         
         # Check if the transmission-remote executable exists
         if [[ ! -x "${TORRENT_CLIENT_CLI_PATH}" ]] && ! command -v "$torrent_client_exe" >/dev/null 2>&1; then
@@ -694,9 +723,9 @@ log_debug_event "$log_prefix" "✅ All core macOS tools available."
 # --- Check Transmission Daemon Status ---
 # Verify daemon is running if magnet link handling is enabled
 if [[ "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
-    log_debug_event "$log_prefix" "Checking Transmission daemon status..."
+    log_debug_event "$log_prefix" "Checking Transmission background service status..."
     if ! check_transmission_daemon; then
-        log_warn_event "$log_prefix" "Magnet link handling is enabled, but Transmission daemon is not running."
+        log_warn_event "$log_prefix" "Magnet link handling is enabled, but the Transmission background service is not running."
         any_optional_missing=true
     fi
 fi

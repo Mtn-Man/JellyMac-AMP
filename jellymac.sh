@@ -12,7 +12,7 @@
 # - Can fully automate the media aquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: 0.1.4
+# Version: 0.1.5
 # Last Updated: 2025-05-26
 # License: MIT Open Source
 
@@ -105,6 +105,7 @@ LAST_LOG_DATE_CHECKED=""       # Used to track if we need to create a new log fi
 #==============================================================================
 # Functions for creating, rotating, and cleaning up log files
 
+#==================================================================
 # Function: _delete_old_logs
 # Description: Deletes log files older than LOG_RETENTION_DAYS
 # Parameters: None
@@ -125,12 +126,15 @@ _delete_old_logs() {
         find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -delete
     fi
 }
+#=================================================================
 
+#==============================================================================
 # Function: _ensure_log_file_updated
 # Description: Creates or updates the log file path based on current date
 # Parameters: None
 # Returns: None
 # Side Effects: Updates CURRENT_LOG_FILE_PATH and LAST_LOG_DATE_CHECKED globals
+#==============================================================================
 _ensure_log_file_updated() {
     if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$LOG_DIR" || -z "$LOG_FILE_BASENAME" ]]; then
         CURRENT_LOG_FILE_PATH=""
@@ -141,81 +145,23 @@ _ensure_log_file_updated() {
     if [[ "$current_date" != "$LAST_LOG_DATE_CHECKED" || ! -f "$CURRENT_LOG_FILE_PATH" ]]; then
         LAST_LOG_DATE_CHECKED="$current_date"
         CURRENT_LOG_FILE_PATH="${LOG_DIR}/${LOG_FILE_BASENAME}_${current_date}.log"
-        
+    
         # Create log directory - succeed or exit
         mkdir -p "$LOG_DIR"
         local mkdir_exit_code=$?
         if [[ $mkdir_exit_code -ne 0 ]]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Failed to create log directory '$LOG_DIR'. Check permissions and filesystem. Exiting." >&2
-            exit 1
-        fi
-        
-        # Only print success message if we get here
-        echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - Log file for today: $CURRENT_LOG_FILE_PATH" >&2
-        _delete_old_logs
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Failed to create log directory '$LOG_DIR'. Check permissions and filesystem. Exiting." >&2
+        exit 1
     fi
+    
+    # Use direct echo to avoid triggering logging system recursion
+    echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - Log file for today: $CURRENT_LOG_FILE_PATH" >&2
+    _delete_old_logs
+fi
 }
 _ensure_log_file_updated # Initial setup call
 
-_log_to_file_and_console() {
-    local required_level_num="$1"
-    local log_event_func_name="$2" # e.g., "log_debug_event" (from logging_utils.sh)
-    local log_prefix_for_event="$3" # e.g., "$_WATCHER_LOG_PREFIX"
-    local message_to_log="$4"
-    local output_to_stderr="${5:-false}" # For console part
-    local file_log_message # Declare separately for SC2034/set -e safety with command substitution
-
-    _ensure_log_file_updated # Ensure log file path is current
-
-    if [[ "$SCRIPT_CURRENT_LOG_LEVEL" -le "$required_level_num" ]]; then
-        # 1. Log to console (using the primitive from logging_utils.sh)
-        #    The primitive itself (e.g. log_debug_event) handles adding emoji/severity and timestamp.
-        #    It also decides its own output stream (typically stderr).
-        #    The output_to_stderr here is a bit redundant if primitives always go to stderr,
-        #    but kept for potential future flexibility if primitives change.
-        if [[ "$output_to_stderr" == "true" ]]; then
-            "$log_event_func_name" "$log_prefix_for_event" "$message_to_log" >&2
-        else
-            "$log_event_func_name" "$log_prefix_for_event" "$message_to_log"
-        fi
-
-        # 2. Log to file (if enabled and path is valid)
-        if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
-            # Construct the message for the file: Prefix + Timestamp + Message
-            # The log_event_func_name (e.g. log_debug_event) already formats with emoji/severity/timestamp.
-            # So, we need to reconstruct a similar format but ensure it's clean for the file.
-            # Let's use the raw prefix and add our own timestamp for the file log for consistency.
-            local severity_label
-            case "$required_level_num" in
-                "$LOG_LEVEL_DEBUG") severity_label="DEBUG:" ;;
-                "$LOG_LEVEL_INFO")  severity_label="" ;; # INFO often doesn't have a label
-                "$LOG_LEVEL_WARN")  severity_label="WARN:" ;;
-                "$LOG_LEVEL_ERROR") severity_label="ERROR:" ;;
-                *)                  severity_label="LOG:" ;;
-            esac
-            
-            # Assign value with command substitution on a new line
-            file_log_message="${log_prefix_for_event} $(date '+%Y-%m-%d %H:%M:%S') - ${severity_label} ${message_to_log}"
-            
-            if command -v flock >/dev/null 2>&1; then
-                exec 200>>"$CURRENT_LOG_FILE_PATH" # Open FD for flock
-                if flock -w 0.5 200; then # Try to lock for 0.5s
-                    echo "$file_log_message" >&200
-                    flock -u 200 # Release lock
-                else
-                    log_warn_event "$_WATCHER_LOG_PREFIX" "Flock timeout writing to log file. Appending directly (potential race)."
-                    echo "[FLOCK_TIMEOUT] $file_log_message" >> "$CURRENT_LOG_FILE_PATH"
-                fi
-                exec 200>&- # Close FD
-            else
-                # This case should ideally be caught by doctor_utils.sh if flock is critical
-                log_warn_event "$_WATCHER_LOG_PREFIX" "'flock' command not found. File logging might be unsafe."
-                echo "$file_log_message" >> "$CURRENT_LOG_FILE_PATH"
-            fi
-        fi
-    fi
-}
-
+#==============================================================================
 # Function: _log_to_current_file
 # Description: File-only logging helper for logging_utils.sh emoji-based functions
 # Parameters:
@@ -224,6 +170,9 @@ _log_to_file_and_console() {
 #   $3: Message string
 # Returns: None
 # Side Effects: Writes to CURRENT_LOG_FILE_PATH if file logging is enabled
+# Dev Note: makes heavy use of shellcheck disable=SC2317 to prevent false positives, 
+# since this is a helper for the emoji-based logging system in loggin_utils.sh.
+#==============================================================================
 _log_to_current_file() {
     # shellcheck disable=SC2317
     local required_level_num="$1"
@@ -276,18 +225,14 @@ _log_to_current_file() {
     fi
 }
 
-# Define local log functions for jellymac.sh, using the wrapper.
-# Only log_debug uses the wrapper for file logging - all other calls now use the new emoji-based system directly.
-log_debug() { _log_to_file_and_console "$LOG_LEVEL_DEBUG" "log_debug_event" "$_WATCHER_LOG_PREFIX" "$1"; }
+# Define local log function for jellymac.sh using the modern emoji-based system
+log_debug() { log_debug_event "JellyMac" "$1"; }
 
-# REMOVED: log_info, log_warn, log_error - no longer used after emoji-based system update
-# User-facing messages now call log_user_info/log_user_start/etc. directly
-# System events now call log_warn_event/log_error_event directly
 
 # --- Single Instance Lock ---
 LOCK_FILE="${STATE_DIR}/jellymac.sh.lock"
 _acquire_lock() {
-    log_debug "Attempting to acquire instance lock: $LOCK_FILE"
+    log_debug_event "JellyMac" "Attempting to acquire instance lock: $LOCK_FILE"
     if [[ ! -d "$STATE_DIR" ]]; then
         if ! mkdir -p "$STATE_DIR"; then
             # Use primitive echo for critical startup error
@@ -304,11 +249,11 @@ _acquire_lock() {
         log_error_event "JellyMac" "Another instance of jellymac.sh is already running (Lock file: '$LOCK_FILE'). Exiting."
         exit 1
     fi
-    log_user_info "JellyMac" "Instance lock acquired: $LOCK_FILE"
+    log_debug_event "JellyMac" "Instance lock acquired: $LOCK_FILE"
 }
 _release_lock() {
     # shellcheck disable=SC2317
-    log_debug "Releasing instance lock: $LOCK_FILE"
+    log_debug_event "JellyMac" "Releasing instance lock: $LOCK_FILE"
     # shellcheck disable=SC2317
     if [[ -n "$LOCK_FILE" ]]; then 
         exec 201>&- # Close file descriptor
@@ -318,31 +263,7 @@ _release_lock() {
 }
 
 # --- Desktop Notification Function (macOS Only) ---
-_OSASCRIPT_CMD="" # Initialized during startup checks
-send_desktop_notification() {
-    local title="$1"; local message="$2"; local sound_name="${3:-Purr}" # Default sound
-
-    if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" != "true" || "$(uname)" != "Darwin" ]]; then return; fi
-    if [[ "$_OSASCRIPT_CMD" == "NOT_FOUND" ]]; then return; fi 
-    if [[ -z "$_OSASCRIPT_CMD" ]]; then 
-        log_warn_event "JellyMac" "_OSASCRIPT_CMD not initialized before use in send_desktop_notification. This is a script bug."
-        return; 
-    fi
-
-    # Validate required parameters
-    if [[ -z "$title" || -z "$message" ]]; then
-        log_warn_event "JellyMac" "send_desktop_notification called with missing title or message parameters. Skipping notification."
-        return
-    fi
-
-    local safe_title; safe_title=$(echo "$title" | sed 's/\\/\\\\/g; s/"/\\"/g' | head -c 100)
-    local safe_message; safe_message=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g' | head -c 200)
-    local osascript_command_str="display notification \"${safe_message}\" with title \"${safe_title}\""
-    if [[ -n "$sound_name" ]]; then osascript_command_str+=" sound name \"${sound_name}\""; fi
-
-    log_debug "Sending desktop notification: Title='${title}', Message='${message}'"
-    "$_OSASCRIPT_CMD" -e "$osascript_command_str" >/dev/null 2>&1 &
-}
+# Now handled by send_desktop_notification() in common_utils.sh
 
 # --- Caffeinate and Process Management ---
 CAFFEINATE_PROCESS_ID=""
@@ -364,10 +285,11 @@ _SHUTDOWN_IN_PROGRESS=""
 # Returns: None
 _cleanup_jellymac_temp_files() {
     #shellcheck disable=SC2317
-    log_debug "Cleaning up jellymac.sh specific temp files..."
+    log_debug_event "JellyMac" "Cleaning up jellymac.sh specific temp files..."
     #shellcheck disable=SC2317
-    log_debug "No specific jellymac.sh temp files to clean in this version beyond what functions manage themselves."
+    log_debug_event "JellyMac" "No specific jellymac.sh temp files to clean in this version beyond what functions manage themselves."
 }
+
 # Function: graceful_shutdown_and_cleanup
 # Description: Main cleanup handler called when script exits (normal or interrupted)
 # Parameters: None
@@ -392,7 +314,7 @@ graceful_shutdown_and_cleanup() {
         kill "$CAFFEINATE_PROCESS_ID" 2>/dev/null || log_warn_event "JellyMac" "Caffeinate PID $CAFFEINATE_PROCESS_ID not found or already exited."
     fi
     #shellcheck disable=SC2317
-    log_user_info "JellyMac" "Terminating any active child processors..."
+    log_user_info "JellyMac" "Cleaning up any active child processes..."
     #shellcheck disable=SC2317
     local old_ifs="$IFS" 
     #shellcheck disable=SC2317
@@ -493,7 +415,7 @@ manage_active_processors() {
             if wait "$pid" >/dev/null 2>&1; then 
                  exit_status=$?
             else
-                 log_debug "manage_active_processors: wait for PID $pid failed or already reaped. Assuming finished."
+                 log_debug_event "JellyMac" "manage_active_processors: wait for PID $pid failed or already reaped. Assuming finished."
             fi
             log_user_info "JellyMac" "✅ Processor PID $pid ($script_basename for '${item_identifier:0:70}...') completed. Exit status: $exit_status."
             
@@ -525,7 +447,7 @@ is_item_being_processed() {
     local entry_count=${#p_info_array[@]}
 
     if [[ $entry_count -eq 0 || $((entry_count % 4)) -ne 0 ]]; then
-        log_debug "is_item_being_processed: malformed _ACTIVE_PROCESSOR_INFO_STRING. Checked for '$item_to_check'."
+        log_debug_event "JellyMac" "is_item_being_processed: malformed _ACTIVE_PROCESSOR_INFO_STRING. Checked for '$item_to_check'."
         return 1 
     fi
     for ((idx=0; idx<entry_count; idx+=4)); do
@@ -570,7 +492,7 @@ _check_clipboard_youtube() {
                 else
                     send_desktop_notification "JellyMac: YouTube Error" "Failed: ${trimmed_cb:0:60}..." "Basso"
                     # Changed to log_warn to prevent watcher exit on single YouTube failure
-                    log_warn_event "JellyMac" "❌ YouTube processing FAILED for: ${trimmed_cb:0:70}... Helper script indicated an error."
+                    log_warn_event "JellyMac" "❌ YouTube processing FAILED for: ${trimmed_cb:0:70}...  Check the logs for details."
                 fi
                 ;;
         esac
@@ -605,7 +527,7 @@ _check_clipboard_magnet() {
                     send_desktop_notification "JellyMac: Magnet" "Sent to client: ${trimmed_cb:0:60}..." 
                 else
                     # Changed to log_warn to prevent watcher exit on single magnet failure
-                    log_warn_event "JellyMac" "❌ Failed to process magnet link via helper script: ${trimmed_cb:0:70}... Helper script indicated an error."; 
+                    log_warn_event "JellyMac" "❌ Failed to process magnet link: ${trimmed_cb:0:70}... Check the logs for more details."; 
                 fi
                 ;;
         esac
@@ -622,7 +544,7 @@ process_drop_folder() {
         log_warn_event "JellyMac" "DROP_FOLDER ('${DROP_FOLDER:-N/A}') not configured or found. Skipping scan."
         return
     fi
-    log_debug "Scanning DROP_FOLDER: $DROP_FOLDER"
+    log_debug_event "JellyMac" "Scanning DROP_FOLDER: $DROP_FOLDER"
     local find_results_file 
     if [[ ! -d "$STATE_DIR" ]]; then 
         mkdir -p "$STATE_DIR" || { log_error_event "JellyMac" "Failed to create STATE_DIR '$STATE_DIR' for temp scan file. Cannot scan DROP_FOLDER."; exit 1; }
@@ -639,17 +561,17 @@ process_drop_folder() {
         # Bash 3.2 compatible: Use case statement instead of regex
         case "$item_basename" in
             .DS_Store|desktop.ini|.stfolder|.stversions|.localized|._*|*.part|*.crdownload)
-                log_debug "Skipping common/temp file in DROP_FOLDER: '$item_basename'"; continue
+                log_debug_event "JellyMac" "Skipping common/temp file in DROP_FOLDER: '$item_basename'"; continue
                 ;;
         esac
 
         if is_item_being_processed "$item_path"; then
-            log_debug "Item '$item_basename' (DROP_FOLDER) already processing. Skipping."; continue
+            log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) already processing. Skipping."; continue
         fi
 
         log_user_info "JellyMac" "Checking stability for item in DROP_FOLDER: '$item_basename'"
         if ! wait_for_file_stability "$item_path" "${STABLE_CHECKS_DROP_FOLDER:-3}" "${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}"; then
-            log_debug "Item '$item_basename' (DROP_FOLDER) not stable. Will re-check next cycle."; continue
+            log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) not stable. Will re-check next cycle."; continue
         fi
         log_user_info "JellyMac" "✅ Item '$item_basename' (DROP_FOLDER) is stable."
 
@@ -716,7 +638,7 @@ fi
 _acquire_lock # Ensure only one instance of JellyMac runs at a time
 
 log_user_start "JellyMac" "JellyMac AMP Starting..."
-log_user_info "JellyMac" "Version: 0.1.4 ($(date '+%Y-%m-%d %H:%M:%S'))"
+log_user_info "JellyMac" "Version: 0.1.5 ($(date '+%Y-%m-%d %H:%M:%S'))"
 log_user_info "JellyMac" "   Project Root: $JELLYMAC_PROJECT_ROOT"
 log_user_info "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
@@ -728,12 +650,12 @@ fi
 if [[ ! -d "$STATE_DIR" ]]; then 
     log_user_info "JellyMac" "🛠️ State directory was created: $STATE_DIR" 
 else
-    log_debug "✅ State directory OK: $STATE_DIR"
+    log_debug_event "JellyMac" "✅ State directory OK: $STATE_DIR"
 fi
 
 
 
-log_debug "Verifying essential directories..."
+log_debug_event "JellyMac" "Verifying essential directories..."
 declare -a critical_dest_paths_to_check=("${DEST_DIR_MOVIES:-}" "${DEST_DIR_SHOWS:-}" "${DEST_DIR_YOUTUBE:-}")
 declare -a local_operational_paths_to_create=("${DROP_FOLDER:-}" "${LOCAL_DIR_YOUTUBE:-}" "${ERROR_DIR:-}")
 
@@ -741,10 +663,11 @@ for pth_to_check in "${critical_dest_paths_to_check[@]}"; do
     if [[ -z "$pth_to_check" ]]; then 
         log_warn_event "JellyMac" "Config for a critical destination path (e.g. DEST_DIR_MOVIES) is empty in config." 
     elif [[ ! -d "$pth_to_check" ]]; then 
-        log_error_event "JellyMac" "❌ CRITICAL: Destination Directory '$pth_to_check' not found or not accessible."
+        log_error_event "JellyMac" "❌ CRITICAL: Destination Directory '$pth_to_check' not found or not accessible. Please check your connection."
+        log_error_event "JellyMac" "Ensure the folder exists and is writable, then restart jellymac.sh to try again."
         exit 1 
     else 
-        log_debug "✅ Critical Destination Directory '$pth_to_check' OK."
+        log_debug_event "JellyMac" "✅ Critical Destination Directory '$pth_to_check' OK."
     fi
 done
 
@@ -754,25 +677,25 @@ for pth_to_create in "${local_operational_paths_to_create[@]}"; do
         exit 1
     fi
     if [[ ! -d "$pth_to_create" ]]; then
-        log_user_info "JellyMac" "🛠️ Local operational directory '$pth_to_create' not found. Creating..."
+        log_user_info "JellyMac" "🛠️ Local working folder '$pth_to_create' not found. Attempting to create it..."
         if mkdir -p "$pth_to_create"; then log_user_info "JellyMac" "✅ Successfully created '$pth_to_create'.";
         else
             log_error_event "JellyMac" "❌ Failed to create '$pth_to_create'. Check permissions."
             exit 1 
         fi
     else 
-        log_debug "✅ Local operational directory '$pth_to_create' exists."
+        log_debug_event "JellyMac" "✅ Local working folder '$pth_to_create' exists."
     fi
 done
 log_user_info "JellyMac" "✅ Directory verification complete."
 
-log_user_info "JellyMac" "Verifying helper scripts are executable..."
+log_user_info "JellyMac" "Verifying program files are executable..."
 for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PROCESS_MEDIA_ITEM_SCRIPT"; do
     if [[ ! -x "$helper_script_path" ]]; then
-        log_error_event "JellyMac" "CRITICAL: Helper script '$helper_script_path' is not found or not executable. Exiting."
+        log_error_event "JellyMac" "CRITICAL: Essential program file '$helper_script_path' is not found or not executable. Exiting."
         exit 1
     fi
-done; log_user_info "JellyMac" "✅ Helper scripts are executable."
+done; log_user_info "JellyMac" "✅ Program files are ready to go!."
 
 if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
     log_user_info "JellyMac" "☕ Starting 'caffeinate' to prevent system sleep..."
@@ -804,10 +727,6 @@ fi
 if [[ "$(uname)" == "Darwin" ]]; then
     # If we reached here with these features enabled, doctor_utils.sh already verified the commands exist
     CAFFEINATE_CMD_PATH="caffeinate"
-    
-    if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" == "true" ]]; then
-        _OSASCRIPT_CMD="osascript"
-    fi
 fi
 
 # Directory checks are already done by validate_config_filepaths() in doctor_utils.sh
@@ -815,7 +734,7 @@ fi
 
 log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
 
-log_user_info "JellyMac" "--- JellyMac AMP Configuration Summary (v0.1.3) ---"
+log_user_info "JellyMac" "--- JellyMac AMP Configuration Summary (v0.1.5) ---"
 log_user_info "JellyMac" "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A} (Checks: ${STABLE_CHECKS_DROP_FOLDER:-3}, Interval: ${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}s)"
 log_user_info "JellyMac" "  Max Concurrent Media Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" "  Desktop Notifications (macOS): ${ENABLE_DESKTOP_NOTIFICATIONS:-false}"
@@ -829,15 +748,15 @@ log_user_info "JellyMac" "  Error/Quarantine Dir: ${ERROR_DIR:-N/A}"
 log_user_info "JellyMac" "  Main Loop Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s"
 log_user_info "JellyMac" "-------------------------------------------------------"
 
-log_user_progress "Scan" "👀 Performing initial scan of DROP_FOLDER..."
+log_user_progress "Scan" "👀 Checking the DROP_FOLDER for media..."
 process_drop_folder
 if [[ -n "$PBPASTE_CMD" ]]; then
-    log_user_info "JellyMac" "📋 Performing initial clipboard checks..."; 
+    log_user_info "JellyMac" "📋 Checking the clipboard for links..."; 
     _check_clipboard_youtube; 
     _check_clipboard_magnet
 else log_user_info "JellyMac" "📋 Skipping initial clipboard checks ('pbpaste' not available or clipboard features disabled)."; fi
 
-log_user_status "JellyMac" "🔄 Main loop active. Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s."
+log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds... (press control+c any time to exit)"
 while true; do
     manage_active_processors    
     if [[ -n "$PBPASTE_CMD" ]]; then 
@@ -846,7 +765,7 @@ while true; do
     fi
     process_drop_folder         
     
-    log_debug "Main loop iter done. Sleeping ${MAIN_LOOP_SLEEP_INTERVAL:-15}s."
+    log_debug_event "JellyMac" "Main loop iter done. Sleeping ${MAIN_LOOP_SLEEP_INTERVAL:-15}s."
     sleep "${MAIN_LOOP_SLEEP_INTERVAL:-15}"
 done
 
