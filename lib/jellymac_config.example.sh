@@ -35,7 +35,7 @@ JELLYMAC_PROJECT_ROOT="$(cd "${CONFIG_FILE_OWN_DIR}/.." && pwd)"
 # === CORE SYSTEM SETTINGS ===
 LOG_DIR="${JELLYMAC_PROJECT_ROOT}/logs"
 AUTO_INSTALL_DEPENDENCIES="false"
-MAIN_LOOP_SLEEP_INTERVAL=5
+MAIN_LOOP_SLEEP_INTERVAL=2                          # Seconds between input checks
 AUTO_CREATE_MISSING_DIRS="true"
 MAX_CONCURRENT_PROCESSORS="2"
                                
@@ -72,7 +72,7 @@ MEDIA_TAG_BLACKLIST="1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|
 # Transfer Settings
 PERFORM_POST_TRANSFER_DELETE="true"  # Delete source files after successful transfer to destination
 POST_TRANSFER_DELETE_DELAY=30        # Wait time (seconds) before deleting source files
-RSYNC_TIMEOUT=300                    # Network transfer timeout in seconds
+RSYNC_TIMEOUT=600                    # Network transfer timeout in seconds
 
 # File Stability Detection
 # These settings prevent processing files that are still being written/transferred
@@ -87,7 +87,7 @@ STABLE_SLEEP_INTERVAL_DROP_FOLDER="10"  # Seconds between stability checks
 
 ENABLE_JELLYFIN_SCAN_MOVIES="true"    # Scan movie library after adding new movies
 ENABLE_JELLYFIN_SCAN_SHOWS="true"     # Scan TV library after adding new shows  
-ENABLE_JELLYFIN_SCAN_YOUTUBE="true"   # Scan YouTube library after adding new videos
+ENABLE_JELLYFIN_SCAN_YOUTUBE="false"   # Scan YouTube library after adding new videos
 
 #==============================================================================
 # TORRENT AUTOMATION
@@ -104,14 +104,14 @@ TRANSMISSION_REMOTE_AUTH=""                                     # Leave blank if
 #==============================================================================
 # Local staging area and download settings for YouTube content
 
-LOCAL_DIR_YOUTUBE="/path/to/local/youtube_downloads"            # Temporary download location
+LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"          # Temporary download location
 DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"  # Prevents re-downloading
 COOKIES_ENABLED="false"                                         # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                       # Export from browser if cookies enabled
 YTDLP_FORMAT="bv[height<=1080][vcodec=vp9]+ba[acodec=opus]/bv[height<=1080]+ba/best"  # Video quality preference
 YTDLP_OPTS=(
     --no-playlist                    # Download single video only, not entire playlist
-    --merge-output-format mkv        # Combine video/audio into MKV container
+    --merge-output-format mp4        # Combine video/audio into .mp4 container
     --embed-metadata                 # Include video title, description in file
     --restrict-filenames             # Use only safe characters in filenames
 )
