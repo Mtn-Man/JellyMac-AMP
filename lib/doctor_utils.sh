@@ -122,7 +122,8 @@ collect_missing_dependencies() {
 handle_missing_dependencies_interactively() {
     local missing_deps=("$@")
     local missing_count=${#missing_deps[@]}
-    
+    local log_prefix="Doctor" # Define log_prefix for this function
+
     if [[ $missing_count -eq 0 ]]; then
         return 0  # No missing dependencies
     fi
@@ -131,9 +132,9 @@ handle_missing_dependencies_interactively() {
     clear
     
     # Print welcome header with colorful border
-    echo -e "\033[36m+--------------------------------------------------------------+\033[0m"
+    echo -e "\033[36m+--------------------------------------------------------+\033[0m"
     echo -e "\033[36m|\033[0m       \033[1m\033[33mWelcome to JellyMac AMP - First Time Setup\033[0m       \033[36m|\033[0m"
-    echo -e "\033[36m+--------------------------------------------------------------+\033[0m"
+    echo -e "\033[36m+--------------------------------------------------------+\033[0m"
     echo
     echo -e "\033[1mWe noticed this is your first time running JellyMac AMP.\033[0m"
     echo "Before we can start automating your media library, we need to set up a few things."
@@ -184,22 +185,36 @@ handle_missing_dependencies_interactively() {
         2)  # Enable automatic installation (permanent)
             echo -e "\033[1mEnabling automatic program installation...\033[0m"
             
-            # Update the config file
-            local config_file="${LIB_DIR}/jellymac_config.sh"
+            # Determine the directory of the currently executing script (doctor_utils.sh)
+            local script_dir
+            script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+            local config_file="${script_dir}/jellymac_config.sh"
+            
+            log_user_info "$log_prefix" "Attempting to update config file: '$config_file'"
+
             if [[ -f "$config_file" && -w "$config_file" ]]; then
                 # Create a backup of the config file first
                 cp "$config_file" "${config_file}.bak"
+                log_user_info "$log_prefix" "Created backup of config file: '${config_file}.bak'"
                 
-                # Use macOS-compatible sed syntax
+                # Use macOS-compatible sed syntax with a more robust pattern
+                local sed_pattern='s/^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"false".*/AUTO_INSTALL_DEPENDENCIES="true"/'
                 if [[ "$(uname)" == "Darwin" ]]; then
-                    sed -i '' 's/^AUTO_INSTALL_DEPENDENCIES="false"/AUTO_INSTALL_DEPENDENCIES="true"/' "$config_file"
+                    sed -i '' "$sed_pattern" "$config_file"
                 else
                     # Linux/other systems
-                    sed -i 's/^AUTO_INSTALL_DEPENDENCIES="false"/AUTO_INSTALL_DEPENDENCIES="true"/' "$config_file"
+                    sed -i "$sed_pattern" "$config_file"
                 fi
                 
-                log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true"
-                echo
+                # Verify that the change was successful
+                if grep -q '^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"true"' "$config_file"; then
+                    log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true in '$config_file'"
+                else
+                    log_error_event "$log_prefix" "❌ Failed to verify update of AUTO_INSTALL_DEPENDENCIES to true in '$config_file'."
+                    log_user_info "$log_prefix" "The line might not have matched or sed command failed. Original setting may persist."
+                    # Attempt to proceed with installation as user intended to enable it.
+                fi
+                echo # For spacing in terminal output
                 
                 # Try installation with new setting
                 AUTO_INSTALL_DEPENDENCIES="true"
@@ -217,7 +232,8 @@ handle_missing_dependencies_interactively() {
                 
                 return $install_status
             else
-                log_user_info "$log_prefix" "❌ Could not update config file. Please set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
+                log_user_info "$log_prefix" "❌ Could not update config file '$config_file'. File not found or not writable."
+                log_user_info "$log_prefix" "Please ensure '$config_file' exists, has write permissions, and then set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
                 return 1
             fi
             ;;
