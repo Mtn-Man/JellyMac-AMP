@@ -83,6 +83,7 @@ install_missing_dependencies() {
 # Side Effects: None
 collect_missing_dependencies() {
     local missing_deps=()
+    local log_prefix="Doctor" # Added for consistency if any logging is needed here
     
     # Check core dependencies
     for dep in "${REQUIRED_DEPENDENCIES[@]}"; do
@@ -95,6 +96,10 @@ collect_missing_dependencies() {
     if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
         if ! command -v "yt-dlp" >/dev/null 2>&1; then
             missing_deps[${#missing_deps[@]}]="yt-dlp"
+        fi
+        # Add ffmpeg as a dependency if YouTube downloads are enabled
+        if ! command -v "ffmpeg" >/dev/null 2>&1; then
+            missing_deps[${#missing_deps[@]}]="ffmpeg"
         fi
     fi
     
@@ -602,17 +607,59 @@ perform_system_health_checks() {
         
         missing_count=${#missing_deps[@]}
         
-        # If still missing critical dependencies, exit
+        # If still missing dependencies, determine if any are critical
+        local critical_failure_detected=false
         if [[ $missing_count -gt 0 ]]; then
+            log_user_info "$log_prefix" "Verifying critical dependencies after installation attempts..."
             for dep in "${missing_deps[@]}"; do
-                if [[ " ${REQUIRED_DEPENDENCIES[*]} " == *" ${dep} "* ]]; then
-                    log_error_event "$log_prefix" "Critical program '$dep' still missing. Exiting."
-                    exit 1
+                local is_this_dep_critical=false
+                local critical_reason=""
+
+                # Check core required dependencies
+                for core_req_dep in "${REQUIRED_DEPENDENCIES[@]}"; do
+                    if [[ "$dep" == "$core_req_dep" ]]; then
+                        is_this_dep_critical=true
+                        critical_reason=" (core requirement)"
+                        break 
+                    fi
+                done
+
+                # Check YouTube dependencies
+                if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
+                    if [[ "$dep" == "yt-dlp" ]]; then
+                        is_this_dep_critical=true
+                        critical_reason=" (for YouTube)"
+                    elif [[ "$dep" == "ffmpeg" ]]; then
+                        is_this_dep_critical=true
+                        critical_reason=" (for YouTube media processing)"
+                    fi
                 fi
-            done
-            # If we got here, only optional dependencies are missing
-            log_warn_event "$log_prefix" "Some optional programs are still missing. Some features may not work."
-            any_optional_missing=true
+                
+                # Check Torrent dependencies
+                if [[ "${ENABLE_TORRENT_AUTOMATION:-false}" == "true" ]]; then
+                    # Assuming collect_missing_dependencies uses "transmission-cli" 
+                    # as the placeholder name for the torrent client.
+                    if [[ "$dep" == "transmission-cli" ]]; then 
+                        is_this_dep_critical=true
+                        critical_reason=" (for Torrents)"
+                    fi
+                fi
+
+                if [[ "$is_this_dep_critical" == "true" ]]; then
+                    log_error_event "$log_prefix" "CRITICAL program '$dep'$critical_reason is still missing."
+                    critical_failure_detected=true
+                fi
+            done # End of loop through missing_deps
+
+            if [[ "$critical_failure_detected" == "true" ]]; then
+                log_error_event "$log_prefix" "One or more critical programs are missing. JellyMac AMP cannot continue."
+                log_user_info "$log_prefix" "Please review the errors above, install the missing programs (e.g., using 'brew install <program>'), or ensure AUTO_INSTALL_DEPENDENCIES is enabled in your config."
+                return 1 
+            else
+                # If we are here, missing_count > 0 but no critical failures were detected.
+                log_warn_event "$log_prefix" "Some optional programs are still missing. Certain non-critical features may not work."
+                any_optional_missing=true
+            fi
         fi
     fi
 
@@ -626,82 +673,6 @@ perform_system_health_checks() {
         fi
     fi
 
-    # --- Critical Commands ---
-    # find_executable (from common_utils.sh) will log an error and exit if a command is not found.
-    # So, if the script proceeds past these checks, the commands were found.
-
-    # Check for flock and attempt to install it if missing
-    log_debug_event "$log_prefix" "Checking program: flock"
-    if ! command -v flock >/dev/null 2>&1; then
-        if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-            log_user_info "$log_prefix" "flock not found, attempting to install..."
-            if install_missing_dependency "flock"; then
-                log_user_info "$log_prefix" "Successfully installed flock"
-            else
-                log_error_event "$log_prefix" "Failed to install flock and it's a required programs. Exiting."
-                exit 1
-            fi
-        else
-            log_error_event "$log_prefix" "flock not found. This is a required program. Install with: brew install flock"
-            log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
-            exit 1
-        fi
-    fi
-
-    # Built-in/common tools use debug-level logging
-    log_debug_event "$log_prefix" "Checking common system tool: rsync"
-    find_executable "rsync" >/dev/null # Exits if not found, suppress output
-
-    if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
-        log_debug_event "$log_prefix" "Checking for YouTube: yt-dlp"
-        if ! command -v yt-dlp >/dev/null 2>&1; then
-            if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-                log_user_info "$log_prefix" "yt-dlp not found, attempting to install..."
-                if install_missing_dependency "yt-dlp"; then
-                    log_user_info "$log_prefix" "Successfully installed yt-dlp"
-                else
-                    log_error_event "$log_prefix" "Failed to install yt-dlp and it's required for YouTube functionality. Exiting."
-                    exit 1
-                fi
-            else
-                log_error_event "$log_prefix" "yt-dlp not found. This is required for YouTube functionality. Install with: brew install yt-dlp"
-                log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
-                exit 1
-            fi
-        fi
-    fi
-
-    if [[ "${ENABLE_TORRENT_AUTOMATION:-false}" == "true" && -n "${TORRENT_CLIENT_CLI_PATH:-}" ]]; then
-        local torrent_client_exe
-        torrent_client_exe=$(basename "${TORRENT_CLIENT_CLI_PATH}")
-        log_debug_event "$log_prefix" "Checking for Torrents program: $torrent_client_exe (from TORRENT_CLIENT_CLI_PATH)"
-        
-        # Check if the transmission-remote executable exists
-        if [[ ! -x "${TORRENT_CLIENT_CLI_PATH}" ]] && ! command -v "$torrent_client_exe" >/dev/null 2>&1; then
-            if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
-                log_user_info "$log_prefix" "Torrent client $torrent_client_exe not found, attempting to install..."
-                # Always install transmission-cli regardless of the command name
-                if install_missing_dependency "transmission-cli"; then
-                    log_user_info "$log_prefix" "Successfully installed transmission-cli"
-                else
-                    log_error_event "$log_prefix" "Failed to install transmission-cli and it's required for torrent functionality. Exiting."
-                    exit 1
-                fi
-            else
-                log_error_event "$log_prefix" "$torrent_client_exe not found. This is required for torrent functionality. Install with: brew install transmission-cli"
-                log_user_info "$log_prefix" "Or enable auto-install in config: AUTO_INSTALL_DEPENDENCIES=true"
-                exit 1
-            fi
-        fi
-    fi
-
-    if [[ -n "${JELLYFIN_SERVER:-}" ]]; then
-        log_debug_event "$log_prefix" "Checking common system tool: curl"
-        find_executable "curl" >/dev/null # Exits if not found, suppress output
-    fi
-
-    # If we reach here, all external dependency commands checked via find_executable were found.
-    
     # --- Check Core macOS Tools ---
     if [[ "$(uname)" == "Darwin" ]]; then
         log_debug_event "$log_prefix" "Checking core macOS tools..."
@@ -726,37 +697,34 @@ perform_system_health_checks() {
         fi
         
         # Check all core tools
-for core_tool in "${core_tools[@]}"; do
-    if ! command -v "$core_tool" >/dev/null 2>&1; then
-        log_error_event "$log_prefix" "❌ Core macOS tool '$core_tool' is missing. This indicates a corrupted system."
-        log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac AMP."
-        exit 1
+        for core_tool in "${core_tools[@]}"; do
+            if ! command -v "$core_tool" >/dev/null 2>&1; then
+                log_error_event "$log_prefix" "❌ Core macOS tool '$core_tool' is missing. This indicates a corrupted system."
+                log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac AMP."
+                exit 1
+            fi
+        done
+        log_debug_event "$log_prefix" "✅ All core macOS tools available."
     fi
-done
-log_debug_event "$log_prefix" "✅ All core macOS tools available."
-    fi  # <-- This closes the if [[ "$(uname)" == "Darwin" ]] statement
     
-# --- Check Transmission Daemon Status ---
-# Verify daemon is running if magnet link handling is enabled
-if [[ "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
-    log_debug_event "$log_prefix" "Checking Transmission background service status..."
-    if ! check_transmission_daemon; then
-        log_warn_event "$log_prefix" "Magnet link handling is enabled, but the Transmission background service is not running."
-        any_optional_missing=true
+    # --- Check Transmission Daemon Status ---
+    # Verify daemon is running if magnet link handling is enabled
+    if [[ "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
+        log_debug_event "$log_prefix" "Checking Transmission background service status..."
+        if ! check_transmission_daemon; then
+            log_warn_event "$log_prefix" "Magnet link handling is enabled, but the Transmission background service is not running."
+            any_optional_missing=true
+        fi
     fi
-fi
     
     log_user_info "$log_prefix" "✅ System health checks passed."
     
-    # --- Optional Commands ---
-    # None left - all important tools are now considered critical
-
     if [[ "$any_optional_missing" == "true" ]]; then
         log_warn_event "$log_prefix" "🩺 Some optional system health checks failed. Review warnings above."
-        return 2 # Non-critical failure (only optional commands missing)
+        return 2
     else
         log_debug_event "$log_prefix" "🩺 All optional command checks also passed or were not applicable."
-        return 0 # Success, all critical passed, and no optional were missing (or needed)
+        return 0
     fi
 }
 
