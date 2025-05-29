@@ -480,19 +480,18 @@ _check_clipboard_youtube() {
     if [[ "$current_cb_content" != "$LAST_CLIPBOARD_CONTENT_YOUTUBE" && -n "$current_cb_content" ]]; then
         LAST_CLIPBOARD_CONTENT_YOUTUBE="$current_cb_content" 
         local trimmed_cb; trimmed_cb="$(echo -E "${current_cb_content}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-        # Bash 3.2 compatible: Use case statement instead of regex
+        # Bash 3.2 compatible: Use case statement instead of regex where possible
         case "$trimmed_cb" in
             https://www.youtube.com/watch\?v=*|https://youtu.be/*)
                 log_user_info "JellyMac" "▶️ Detected YouTube URL: '${trimmed_cb:0:70}...' Processing in foreground."
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
                 
                 if "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb"; then
-                    log_user_info "JellyMac" "✅ YouTube processing complete for: ${trimmed_cb:0:70}..."
-                    send_desktop_notification "JellyMac: YouTube" "Completed: ${trimmed_cb:0:60}..."
+                    log_debug_event "JellyMac" "✅ YouTube processing complete for: ${trimmed_cb:0:70}..."
                 else
                     send_desktop_notification "JellyMac: YouTube Error" "Failed: ${trimmed_cb:0:60}..." "Basso"
-                    # Changed to log_warn to prevent watcher exit on single YouTube failure
-                    log_warn_event "JellyMac" "❌ YouTube processing FAILED for: ${trimmed_cb:0:70}...  Check the logs for details."
+                    log_warn_event "JellyMac" "❌ YouTube processing FAILED for: ${trimmed_cb:0:70}..."
+                    log_warn_event "JellyMac" "Close JellyMac, run yt-dlp -u, restart JellyMac and try again."
                 fi
                 ;;
         esac
@@ -735,7 +734,7 @@ fi
 log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
 
 log_user_info "JellyMac" "--- JellyMac AMP Configuration Summary (v0.1.5) ---"
-log_user_info "JellyMac" "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A} (Checks: ${STABLE_CHECKS_DROP_FOLDER:-3}, Interval: ${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}s)"
+log_user_info "JellyMac" "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A}"
 log_user_info "JellyMac" "  Max Concurrent Media Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" "  Desktop Notifications (macOS): ${ENABLE_DESKTOP_NOTIFICATIONS:-false}"
 log_user_info "JellyMac" "  Sound Notifications (macOS): ${SOUND_NOTIFICATION:-false}"

@@ -125,19 +125,22 @@ You'll need:
 
 INSTALLATION
 ------------
-  1. Get the Files:
-       Open Terminal and run each command:
-         Run: cd ~
-         Run: git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
-         Run: cd JellyMac_AMP
-         Run: chmod +x jellymac.sh bin/*.sh
+  1. Get Homebrew and the JellyMac_AMP Files:
+       Open Terminal and run each command one at a time:
+         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+         brew install git
+         git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
+         cd JellyMac_AMP
+         chmod +x jellymac.sh bin/*.sh
 
      Alternatively, download the files and place the
-     `JellyMac_AMP` folder in your Home Folder (~).
+     `JellyMac_AMP` folder in your Home Folder (~) then run: cd JellyMac_AMP 
+      and run: chmod +x jellymac.sh bin/*.sh
 
   2. Configure Your Folders & Settings:
        You MUST edit the configuration file to tell
-       JellyMac AMP where your folders are.
+       JellyMac AMP where your folders are for the app to work.
+       
        Open `lib/jellymac_config.sh` in a text editor.
 
        Key paths to set:
@@ -153,9 +156,7 @@ INSTALLATION
        - `DEST_DIR_YOUTUBE` (if `ENABLE_CLIPBOARD_YOUTUBE` is true):
          Example: DEST_DIR_YOUTUBE="/Volumes/Media/YouTube"
 
-   TIP: With default settings, JellyMac AMP will automatically create 
-      local folders like DROP_FOLDER if needed, but network shares 
-      (like /Volumes/Media/) must already be mounted and accessible if used.
+   TIP: Network shares (like /Volumes/Media/) must already be mounted and accessible if used for destination folders
 
   3. Configure Jellyfin Server Updates (Optional):
        If you use Jellyfin and want automatic library scans after new media is added:
@@ -224,7 +225,7 @@ FIRST RUN & USAGE
        - Watch the Terminal window for progress logs.
        - Check macOS notifications (if enabled).
        - Listen for the sound notifications (if enabled).
-)
+
 
   4. When Done:
        Press Ctrl+C in the Terminal window to stop JellyMac AMP.
@@ -287,7 +288,7 @@ TROUBLESHOOTING
 
 ROADMAP AND FUTURE PLANS
 ------------------------
-JellyMac AMP is under active development. Planned features:
+JellyMac AMP is in active development. Planned features:
   - Music file support.
   - Movie/TV Show collection/pack handling.
   - YouTube playlist support.
@@ -297,7 +298,8 @@ JellyMac AMP is under active development. Planned features:
 
 Current development is focused on polishing existing
 functionality. Your feedback is valuable, if you find bugs
-or have any suggestions, please submit them on our GitHub page.
+or have any suggestions or ideas for new features, please submit them on our GitHub page,
+or contact me directly: elisher@duck.com
 
 Thank you for giving JellyMac AMP a chance!
 

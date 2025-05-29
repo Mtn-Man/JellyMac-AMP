@@ -131,9 +131,9 @@ handle_missing_dependencies_interactively() {
     clear
     
     # Print welcome header with colorful border
-    echo -e "\033[36m╔════════════════════════════════════════════════════════════╗\033[0m"
-    echo -e "\033[36m║\033[0m       \033[1m\033[33mWelcome to JellyMac AMP - First Time Setup\033[0m       \033[36m║\033[0m"
-    echo -e "\033[36m╚════════════════════════════════════════════════════════════╝\033[0m"
+    echo -e "\033[36m+--------------------------------------------------------------+\033[0m"
+    echo -e "\033[36m|\033[0m       \033[1m\033[33mWelcome to JellyMac AMP - First Time Setup\033[0m       \033[36m|\033[0m"
+    echo -e "\033[36m+--------------------------------------------------------------+\033[0m"
     echo
     echo -e "\033[1mWe noticed this is your first time running JellyMac AMP.\033[0m"
     echo "Before we can start automating your media library, we need to set up a few things."
@@ -530,7 +530,7 @@ offer_transmission_service_enablement() {
             log_user_info "$log_prefix" "User declined to start Transmission service"
             log_warn_event "$log_prefix" "⚠️ Magnet link handling will be unavailable until Transmission is running"
             log_user_info "$log_prefix" "You can start it manually later with: brew services start transmission"
-            log_user_info "$log_prefix" ""  # Blank line for spacing
+            log_user_info "$log_prefix" ""
             log_user_info "$log_prefix" "⚙️ REMINDER: When Transmission is running, configure its download location!"
             local web_portal_url="http://${transmission_host}"
             log_user_info "$log_prefix" "   1. Click this link to open Transmission: ${web_portal_url}"

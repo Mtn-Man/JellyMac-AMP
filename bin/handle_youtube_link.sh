@@ -553,7 +553,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     
     # Desktop notification if enabled
     if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" == "true" ]]; then
-        osascript_cmd_str="display notification \"Download complete: ${notification_title_safe}\" with title \"JellyMac - YouTube\""
+        osascript_cmd_str="display notification \"Download and transfer complete: ${notification_title_safe}\" with title \"JellyMac - YouTube\""
         if command -v osascript &>/dev/null; then 
             osascript -e "$osascript_cmd_str" || log_warn_event "YouTube" "osascript desktop notification failed."; 
         else 
@@ -565,5 +565,5 @@ if [[ "$(uname)" == "Darwin" ]]; then
     play_sound_notification "task_success" "$SCRIPT_NAME"
 fi
 
-log_user_complete "YouTube" "Processing complete for '$YOUTUBE_URL' → $final_destination_path"
+log_user_complete "YouTube" "✨ Successfully processed: $final_local_filename"
 exit 0
