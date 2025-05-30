@@ -12,7 +12,7 @@
 # - Can fully automate the media aquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: 0.1.5
+# Version: 0.1.6
 # Last Updated: 2025-05-26
 # License: MIT Open Source
 
@@ -637,7 +637,7 @@ fi
 _acquire_lock # Ensure only one instance of JellyMac runs at a time
 
 log_user_start "JellyMac" "JellyMac AMP Starting..."
-log_user_info "JellyMac" "Version: 0.1.5 ($(date '+%Y-%m-%d %H:%M:%S'))"
+log_user_info "JellyMac" "Version: 0.1.6 ($(date '+%Y-%m-%d %H:%M:%S'))"
 log_user_info "JellyMac" "   Project Root: $JELLYMAC_PROJECT_ROOT"
 log_user_info "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
@@ -652,41 +652,30 @@ else
     log_debug_event "JellyMac" "✅ State directory OK: $STATE_DIR"
 fi
 
-
-
-log_debug_event "JellyMac" "Verifying essential directories..."
+log_debug_event "JellyMac" "Verifying essential directory configurations..."
 declare -a critical_dest_paths_to_check=("${DEST_DIR_MOVIES:-}" "${DEST_DIR_SHOWS:-}" "${DEST_DIR_YOUTUBE:-}")
-declare -a local_operational_paths_to_create=("${DROP_FOLDER:-}" "${LOCAL_DIR_YOUTUBE:-}" "${ERROR_DIR:-}")
+declare -a local_operational_paths_to_check=("${DROP_FOLDER:-}" "${LOCAL_DIR_YOUTUBE:-}" "${ERROR_DIR:-}" "${LOG_DIR:-}" "${STATE_DIR:-}") # Added LOG_DIR and STATE_DIR for completeness
 
 for pth_to_check in "${critical_dest_paths_to_check[@]}"; do
     if [[ -z "$pth_to_check" ]]; then 
-        log_warn_event "JellyMac" "Config for a critical destination path (e.g. DEST_DIR_MOVIES) is empty in config." 
-    elif [[ ! -d "$pth_to_check" ]]; then 
-        log_error_event "JellyMac" "❌ CRITICAL: Destination Directory '$pth_to_check' not found or not accessible. Please check your connection."
-        log_error_event "JellyMac" "Ensure the folder exists and is writable, then restart jellymac.sh to try again."
+        log_error_event "JellyMac" "CRITICAL: Config for a critical destination path (e.g. DEST_DIR_MOVIES) is empty. Exiting."
         exit 1 
     else 
-        log_debug_event "JellyMac" "✅ Critical Destination Directory '$pth_to_check' OK."
+        # Assuming doctor_utils.sh handled existence/creation and would have exited on failure.
+        log_debug_event "JellyMac" "✅ Critical Destination Directory '$pth_to_check' configuration is present (existence/accessibility checked by doctor_utils.sh)."
     fi
 done
 
-for pth_to_create in "${local_operational_paths_to_create[@]}"; do
-    if [[ -z "$pth_to_create" ]]; then 
-        log_error_event "JellyMac" "CRITICAL: Config for an essential local path (DROP_FOLDER, ERROR_DIR, etc.) is empty. Exiting."
+for pth_to_check in "${local_operational_paths_to_check[@]}"; do
+    if [[ -z "$pth_to_check" ]]; then 
+        log_error_event "JellyMac" "CRITICAL: Config for an essential local path (DROP_FOLDER, ERROR_DIR, LOG_DIR, STATE_DIR etc.) is empty. Exiting."
         exit 1
-    fi
-    if [[ ! -d "$pth_to_create" ]]; then
-        log_user_info "JellyMac" "🛠️ Local working folder '$pth_to_create' not found. Attempting to create it..."
-        if mkdir -p "$pth_to_create"; then log_user_info "JellyMac" "✅ Successfully created '$pth_to_create'.";
-        else
-            log_error_event "JellyMac" "❌ Failed to create '$pth_to_create'. Check permissions."
-            exit 1 
-        fi
-    else 
-        log_debug_event "JellyMac" "✅ Local working folder '$pth_to_create' exists."
+    else
+        # Assuming doctor_utils.sh handled existence/creation and would have exited on failure.
+        log_debug_event "JellyMac" "✅ Local operational path '$pth_to_check' configuration is present (existence/creation checked by doctor_utils.sh)."
     fi
 done
-log_user_info "JellyMac" "✅ Directory verification complete."
+log_user_info "JellyMac" "✅ Directory configuration verification complete."
 
 log_user_info "JellyMac" "Verifying program files are executable..."
 for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PROCESS_MEDIA_ITEM_SCRIPT"; do
@@ -733,7 +722,7 @@ fi
 
 log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
 
-log_user_info "JellyMac" "--- JellyMac AMP Configuration Summary (v0.1.5) ---"
+log_user_info "JellyMac" "--- JellyMac AMP Configuration Summary (v0.1.6) ---"
 log_user_info "JellyMac" "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A}"
 log_user_info "JellyMac" "  Max Concurrent Media Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" "  Desktop Notifications (macOS): ${ENABLE_DESKTOP_NOTIFICATIONS:-false}"

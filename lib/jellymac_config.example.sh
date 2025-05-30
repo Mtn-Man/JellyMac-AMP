@@ -5,27 +5,27 @@
 #==============================================================================
 
 ################################################################################
-# ⚠️  QUICK START: Configure these essential paths first
+# QUICK START: Configure these essential paths first
 ################################################################################
 
 # === REQUIRED PATHS (Must be configured before first run) ===
-DROP_FOLDER="/path/to/your/drop_folder"                          # Watch folder for Movies and TV Shows
-DEST_DIR_MOVIES="/path/to/your/movies_library"                   # Your Movies library folder
-DEST_DIR_SHOWS="/path/to/your/shows_library"                     # Your TV Shows library folder  
-DEST_DIR_YOUTUBE="/path/to/your/youtube_library"                 # Your YouTube library folder
+DROP_FOLDER="$HOME/Downloads/JellyDrop"                 # Watch folder for Movies and TV Shows
+DEST_DIR_MOVIES="$HOME/Movies/Movies"                   # Your Movies library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Movies)
+DEST_DIR_SHOWS="$HOME/Movies/Shows"                     # Your Shows library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Shows) 
+DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"                 # Your YouTube library folder
 
 # === JELLYFIN SERVER (Optional - leave blank to disable) ===
-JELLYFIN_SERVER="http://your-jellyfin-server-ip:8096"            # Your Jellyfin server URL
-JELLYFIN_API_KEY="your-jellyfin-api-key-here"                    # Generate in Jellyfin → API Keys
+JELLYFIN_SERVER="http://your-jellyfin-server-ip:8096"   # Your Jellyfin server URL
+JELLYFIN_API_KEY="your-jellyfin-api-key-here"           # Generate in Jellyfin → API Keys
 
 # === FEATURES TO ENABLE ===
-ENABLE_TORRENT_AUTOMATION="true"        # Process magnet links automatically? (true/false)
-ENABLE_CLIPBOARD_MAGNET="true"          # Watch clipboard for magnet links? (true/false)
-ENABLE_CLIPBOARD_YOUTUBE="true"         # Watch clipboard for YouTube links? (true/false)
-SOUND_NOTIFICATION="true"               # Play sounds for events? (true/false)
+ENABLE_TORRENT_AUTOMATION="true"                        # Process magnet links automatically? (true/false)
+ENABLE_CLIPBOARD_MAGNET="true"                          # Watch clipboard for magnet links? (true/false)
+ENABLE_CLIPBOARD_YOUTUBE="true"                         # Watch clipboard for YouTube links? (true/false)
+SOUND_NOTIFICATION="true"                               # Play sounds for events? (true/false)
 
 ################################################################################
-# ⚙️  SYSTEM CONFIGURATION (Works well with defaults - modify only if needed)
+# SYSTEM CONFIGURATION (Works well with defaults - modify only if needed)
 ################################################################################
 
 # === CRITICAL EARLY-LOADING VARIABLES (DO NOT MOVE) ===
@@ -35,18 +35,18 @@ JELLYMAC_PROJECT_ROOT="$(cd "${CONFIG_FILE_OWN_DIR}/.." && pwd)"
 # === CORE SYSTEM SETTINGS ===
 LOG_DIR="${JELLYMAC_PROJECT_ROOT}/logs"
 AUTO_INSTALL_DEPENDENCIES="false"
-MAIN_LOOP_SLEEP_INTERVAL=2                          # Seconds between input checks
+MAIN_LOOP_SLEEP_INTERVAL=2                               # Seconds between input checks
 AUTO_CREATE_MISSING_DIRS="true"
-MAX_CONCURRENT_PROCESSORS="2"
+MAX_CONCURRENT_PROCESSORS="2"                            # Maximum number of concurrent media processors (1-4 recoommended for most systems)
                                
 #==============================================================================
 # LOGGING & HISTORY
 #==============================================================================
 
-LOG_LEVEL="INFO"                                    # DEBUG, INFO, WARN, ERROR
-LOG_ROTATION_ENABLED="true"                         # Enable daily log rotation
-LOG_FILE_BASENAME="jellymac_amp_log"                # Base name for log files
-LOG_RETENTION_DAYS="7"                              # Days to keep old log files
+LOG_LEVEL="INFO"                                         # DEBUG, INFO, WARN, ERROR
+LOG_ROTATION_ENABLED="true"                              # Enable daily log rotation
+LOG_FILE_BASENAME="jellymac_amp_log"                     # Base name for log files
+LOG_RETENTION_DAYS="7"                                   # Days to keep old log files
 HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"
 
 #==============================================================================
@@ -76,7 +76,7 @@ RSYNC_TIMEOUT=600                    # Network transfer timeout in seconds
 
 # File Stability Detection
 # These settings prevent processing files that are still being written/transferred
-STABLE_CHECKS_DROP_FOLDER="3"        # Number of checks to verify file isn't growing
+STABLE_CHECKS_DROP_FOLDER="3"           # Number of checks to verify file isn't growing
 STABLE_SLEEP_INTERVAL_DROP_FOLDER="10"  # Seconds between stability checks
 
 #==============================================================================
@@ -85,19 +85,19 @@ STABLE_SLEEP_INTERVAL_DROP_FOLDER="10"  # Seconds between stability checks
 # These settings control automatic library scanning after media is processed
 # Set to "false" to disable scanning for specific media types
 
-ENABLE_JELLYFIN_SCAN_MOVIES="true"    # Scan movie library after adding new movies
-ENABLE_JELLYFIN_SCAN_SHOWS="true"     # Scan TV library after adding new shows  
-ENABLE_JELLYFIN_SCAN_YOUTUBE="false"   # Scan YouTube library after adding new videos
+ENABLE_JELLYFIN_SCAN_MOVIES="true"      # Scan movie library after adding new movies
+ENABLE_JELLYFIN_SCAN_SHOWS="true"       # Scan TV library after adding new shows  
+ENABLE_JELLYFIN_SCAN_YOUTUBE="false"    # Scan YouTube library after adding new videos
 
 #==============================================================================
 # TORRENT AUTOMATION
 #==============================================================================
-# Configure connection to your torrent client (currently supports Transmission)
+# Configure connection to Transmission for automatic torrent processing
 
-TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"  # Path to transmission-remote
-TRANSMISSION_REMOTE_HOST="localhost:9091"                       # Host:port of transmission daemon
-TRANSMISSION_REMOTE_AUTH=""                                     # Leave blank if no auth required
-                                                                # Format: "username:password" if needed
+TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"     # Path to transmission-remote
+TRANSMISSION_REMOTE_HOST="localhost:9091"                           # Host:port of transmission daemon
+TRANSMISSION_REMOTE_AUTH=""                                         # Leave blank if no auth required
+                                                                    # Format: "username:password" if needed
 
 #==============================================================================
 # YOUTUBE PROCESSING
@@ -108,12 +108,19 @@ LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"          # Temporary 
 DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"  # Prevents re-downloading
 COOKIES_ENABLED="false"                                         # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                       # Export from browser if cookies enabled
-YTDLP_FORMAT="bv[height<=1080][vcodec=vp9]+ba[acodec=opus]/bv[height<=1080]+ba/best"  # Video quality preference
+YTDLP_FORMAT="bv[height<=1080][vcodec=vp9]+ba[acodec=opus]/bv[height<=1080]+ba/best"  # Video quality preference (default is good quality/file size balance)
 YTDLP_OPTS=(
     --no-playlist                    # Download single video only, not entire playlist
     --merge-output-format mp4        # Combine video/audio into .mp4 container
     --embed-metadata                 # Include video title, description in file
+    --embed-thumbnail                # Embed video thumbnail as cover art
     --restrict-filenames             # Use only safe characters in filenames
+ #  --sponsorblock-remove all        # Remove sponsored segments automatically
+ #  --write-subs                     # Download subtitles if available (creates separate .srt or .vtt files)
+ #  --sub-langs "en.*,en,es"         # Preferred subtitle languages (e.g., all English variants, then Spanish)
+ #  --write-auto-subs                # Download automatic (generated) subtitles if no human-made ones are available
+ #  --convert-subs srt               # Convert subtitles to SRT format if downloaded in another format
+ #  --ppa "EmbedSubtitle"            # Attempts to embed downloaded subtitles into the file (experimental for mp4, works well with mkv)
 )
 # Add custom yt-dlp options above. See: https://github.com/yt-dlp/yt-dlp#usage-and-options
 
@@ -122,8 +129,8 @@ YTDLP_OPTS=(
 #==============================================================================
 # Controls visual and audio feedback during operation
 
-ENABLE_DESKTOP_NOTIFICATIONS="false"    # Show macOS notifications for events
-ENABLE_STARTUP_BANNER="true"            # Display ASCII art banner on startup
+ENABLE_DESKTOP_NOTIFICATIONS="true"                            # Show macOS notifications for events
+ENABLE_STARTUP_BANNER="true"                                   # Display ASCII art banner on startup
 SOUND_INPUT_DETECTED_FILE="/System/Library/Sounds/Funk.aiff"   # Sound when new input detected
 SOUND_TASK_SUCCESS_FILE="/System/Library/Sounds/Glass.aiff"    # Sound for successful operations
 SOUND_TASK_ERROR_FILE="/System/Library/Sounds/Basso.aiff"      # Sound for errors

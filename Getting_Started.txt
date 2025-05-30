@@ -128,76 +128,91 @@ INSTALLATION
   1. Get Homebrew and the JellyMac_AMP Files:
        Open Terminal and run each command one at a time:
          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+         (follow the prompts to install Homebrew)
          brew install git
          git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
          cd JellyMac_AMP
          chmod +x jellymac.sh bin/*.sh
 
-     Alternatively, download the files and place the
-     `JellyMac_AMP` folder in your Home Folder (~) then run: cd JellyMac_AMP 
-      and run: chmod +x jellymac.sh bin/*.sh
+  2. Set Up Your Configuration File:
+       Copy the example configuration:
+         cd lib
+         cp jellymac_config.example.sh jellymac_config.sh
+         cd ..
 
-  2. Configure Your Folders & Settings:
-       You MUST edit the configuration file to tell
-       JellyMac AMP where your folders are for the app to work.
+       Edit your settings (using Finder + TextEdit):
+         - Press Cmd+Shift+H to open your Home Folder in Finder
+         - Navigate to JellyMac_AMP → lib folder
+         - Double-click jellymac_config.sh to open in TextEdit
+         - Adjust paths and settings as needed (see key settings below)
+         - Save with Cmd+S and close TextEdit
+
+       Key settings to configure:
+         - DROP_FOLDER: Where you'll drop new media files
+           Default: "$HOME/Downloads/JellyDrop" (works for most users)
+         
+         - DEST_DIR_MOVIES: Final destination for movies
+           Default: "$HOME/Movies/Movies" 
+           Network example: "/Volumes/Media/Movies"
+         
+         - DEST_DIR_SHOWS: Final destination for TV shows
+           Default: "$HOME/Movies/Shows"
+           Network example: "/Volumes/Media/Shows"
+
+         - DEST_DIR_YOUTUBE: Destination for YouTube videos
+           Default: "$HOME/Movies/YouTube"
+
+       TIP: The defaults work great for local media storage. Only change 
+            paths if you're using network shares or have a specific setup.
        
-       Open `lib/jellymac_config.sh` in a text editor.
-
-       Key paths to set:
-       - `DROP_FOLDER`: Where you'll put new media.
-         Example: DROP_FOLDER="/Users/YourName/Downloads/JellyDrop"
-
-       - `DEST_DIR_MOVIES`: Final destination for movies.
-         Example: DEST_DIR_MOVIES="/Volumes/Media/Movies"
-
-       - `DEST_DIR_SHOWS`: Final destination for TV shows.
-         Example: DEST_DIR_SHOWS="/Volumes/Media/Shows"
-
-       - `DEST_DIR_YOUTUBE` (if `ENABLE_CLIPBOARD_YOUTUBE` is true):
-         Example: DEST_DIR_YOUTUBE="/Volumes/Media/YouTube"
-
-   TIP: Network shares (like /Volumes/Media/) must already be mounted and accessible if used for destination folders
-
-  3. Configure Jellyfin Server Updates (Optional):
-       If you use Jellyfin and want automatic library scans after new media is added:
-       In `lib/jellymac_config.sh`, set:
-         `JELLYFIN_SERVER="http://your-server-ip:8096"`
-         `JELLYFIN_API_KEY="your-jellyfin-api-key"`
+       TIP: Network shares (like /Volumes/Media/) must already be mounted 
+            and accessible if used for destination folders
+  3. Configure Jellyfin Integration (Optional):
+       If you want automatic library scans after adding media:
+         In jellymac_config.sh, set:
+           JELLYFIN_SERVER="http://your-server-ip:8096"
+           JELLYFIN_API_KEY="your-jellyfin-api-key"
 
        To get your Jellyfin API key:
-         1. Open Jellyfin web interface.
-         2. Click user icon → Dashboard.
-         3. Go to API Keys section.
-         4. Click "+" to create a new API key.
-         5. Give it a descriptive name (e.g. JellyMacAMP)
+         1. Open Jellyfin web interface
+         2. Click user icon → Dashboard → API Keys
+         3. Click "+" to create new key
+         4. Name it "JellyMacAMP" and copy the generated key
 
-  4. Enable Optional Features:
-       In `lib/jellymac_config.sh`, enable features you want:
-         `ENABLE_CLIPBOARD_YOUTUBE="true"`
-         `ENABLE_CLIPBOARD_MAGNET="true"`
-         `ENABLE_DESKTOP_NOTIFICATIONS="true"`
+  4. Start JellyMac AMP:
+       Return to Terminal and run:
+         ./jellymac.sh
+
+       On first run, JellyMac AMP will:
+         - Check for missing dependencies
+         - Offer to install them automatically
+         - Create necessary folders
+         - Set up Transmission service if needed (for magnet links)
+         - Guide you through any remaining setup
+
+  5. Complete Magnet Link Automation Setup:
   
-  5. Transmission Setup (for magnet link handling):
-       To fully utilize the torrent processing capabilities:
+       After JellyMac AMP enables Transmission during first run, you'll need to
+       configure the download location for full end-to-end automation.
        
-       a) Install Transmission as a service to start on login:
-          Run: brew services start transmission
-          
-       b) Configure Transmission (through web UI):
-          - Open http://localhost:9091 in your browser
-          - Click on the settings menu (three stacked horizontal lines) in the top right
-          - Click Preferences
-          - In the Downloading tab, set the download folder to your DROP_FOLDER:
-            Example: /Users/YourName/Downloads/JellyDrop
-          - For extra safety (optional): You can check "Use incomplete download folder" 
-            and set it to any writable folder (e.g. /Users/YourName/Downloads)
-          
-       c) Restart Transmission after changes:
-          Run: brew services restart transmission
-          
-       Note: JellyMac AMP is designed to detect file stability and will only
-             process downloads after they're complete, so sending files directly
-             to your DROP_FOLDER is perfectly safe.
+       JellyMac AMP will provide a link and detailed instructions, but here's
+       what you'll need to do:
+       
+       a) Open http://localhost:9091 in your browser
+       b) Click the hamburger menu (≡) at the top right  
+       c) Select 'Edit Preferences' from the menu
+       d) In the Downloads section, set Download location to your DROP_FOLDER:
+          Example: /Users/YourName/Downloads/JellyDrop
+       e) Optional: Enable "Use incomplete download folder" for extra safety
+       
+       This enables the full automation chain:
+       Copy magnet link → Transmission downloads → JellyMac processes → 
+       Media organized → Jellyfin updated
+       
+       Manual Transmission Management (Advanced):
+       - Start service: brew services start transmission
+       - Stop service: brew services stop transmission  
+       - Restart service: brew services restart transmission
   
   6. Sonarr/Radarr Integration (Optional):
        See `Arr_Suite_Handoff_Guide.txt` in the main
@@ -219,7 +234,7 @@ FIRST RUN & USAGE
        Then run the script:  ./jellymac.sh
 
   3. Use It:
-       - Dropor download media files/folders into your `DROP_FOLDER`.
+       - Drop or download media (movies or shows) into your `DROP_FOLDER`.
        - Copy YouTube URLs to your clipboard.
        - Copy magnet links to your clipboard.
        - Watch the Terminal window for progress logs.

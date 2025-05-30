@@ -7,6 +7,27 @@
 # logging_utils.sh, combined.conf.sh, and common_utils.sh have been sourced,
 # and SCRIPT_CURRENT_LOG_LEVEL is set.
 
+# Function: normalize_user_response
+# Description: Normalizes user input for yes/no prompts
+# Parameters:
+#   $1: user_response - The raw user input
+# Returns: Echoes "yes", "no", or "invalid"
+normalize_user_response() {
+    local response="$1"
+    
+    # Convert to lowercase for easier matching
+    response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+    
+    # Trim whitespace (basic approach for Bash 3.2)
+    response=$(echo "$response" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    
+    case "$response" in
+        ""|y|yes) echo "yes" ;;
+        n|no) echo "no" ;;
+        *) echo "invalid" ;;
+    esac
+}
+
 # Function: install_missing_dependency
 # Description: Checks if homebrew is available and installs missing dependencies
 # Parameters:
@@ -521,17 +542,61 @@ offer_transmission_service_enablement() {
                 
                 if "$transmission_cli" "$transmission_host" --list >/dev/null 2>&1; then
                     log_user_info "$log_prefix" "✅ Transmission background service is now accessible"
-                    log_user_info "" # Add a blank line for spacing
-                    log_user_info "$log_prefix" "⚙️ IMPORTANT: Configure Transmission's Download Location!"
-                    local web_portal_url="http://${transmission_host}"
-                    log_user_info "$log_prefix" "   1. Click this link to open Transmission: ${web_portal_url}"
-                    log_user_info "$log_prefix" "   2. Click the hamburger menu (≡) at the top right"
-                    log_user_info "$log_prefix" "   3. Select 'Edit Preferences' from the menu"
-                    log_user_info "$log_prefix" "   4. In the Downloads section, set Download location to:"
-                    log_user_info "$log_prefix" "   ${DROP_FOLDER}"
-                    log_user_info "$log_prefix" "   5. When done, you can safely close the Transmission window"
-                    log_user_info "$log_prefix" "   This allows JellyMac to automatically process your downloads!"
-                    log_user_info "$log_prefix" "   See 'JellyMac_Getting_Started.txt' for advanced options."
+                    
+                    # NEW: Offer automatic configuration
+                    echo
+                    echo -e "\033[1m🎯 Complete Full Automation Setup\033[0m"
+                    echo "Configure Transmission to download directly to your drop folder?"
+                    echo -e "This will set: \033[36m$DROP_FOLDER\033[0m"
+                    echo
+                    echo "This enables the complete automation chain:"
+                    echo "  📋 Copy magnet link → 🌐 Transmission downloads → 📁 JellyMac organizes → 📺 Library updated"
+                    echo
+                    
+                    # Get user input with robust handling
+                    local config_response
+                    while true; do
+                        read -r -p "Auto-configure download location? (Y/n): " config_response
+                        
+                        local normalized_response
+                        normalized_response=$(normalize_user_response "$config_response")
+                        
+                        case "$normalized_response" in
+                            "yes")
+                                log_user_info "$log_prefix" "🔧 Configuring Transmission download location..."
+                                
+                                if configure_transmission_download_dir "$DROP_FOLDER"; then
+                                    echo
+                                    echo -e "\033[32m🎉 Perfect! Full automation is now enabled!\033[0m"
+                                    echo -e "\033[32m✓\033[0m Transmission will download to: $DROP_FOLDER"
+                                    echo -e "\033[32m✓\033[0m JellyMac will automatically process completed downloads"
+                                    echo -e "\033[32m✓\033[0m Your media library will be updated automatically"
+                                    echo
+                                    echo "🚀 You can now copy magnet links and watch the magic happen!"
+                                    echo "   The Transmission web interface is available at: http://${transmission_host}"
+                                else
+                                    echo
+                                    echo -e "\033[33m⚠️  Auto-configuration failed. Let's set it up manually:\033[0m"
+                                    # Fall back to manual instructions
+                                    provide_manual_transmission_setup
+                                fi
+                                break
+                                ;;
+                                
+                            "no")
+                                echo
+                                log_user_info "$log_prefix" "Skipping automatic configuration."
+                                echo "You can configure Transmission manually when ready:"
+                                provide_manual_transmission_setup
+                                break
+                                ;;
+                                
+                            "invalid")
+                                echo -e "\033[31mPlease enter 'y' for yes or 'n' for no.\033[0m"
+                                ;;
+                        esac
+                    done
+                    
                     return 0
                 else
                     log_warn_event "$log_prefix" "⚠️ Transmission service started but background service is still not accessible"
@@ -551,20 +616,64 @@ offer_transmission_service_enablement() {
             log_user_info "$log_prefix" "User declined to start Transmission service"
             log_warn_event "$log_prefix" "⚠️ Magnet link handling will be unavailable until Transmission is running"
             log_user_info "$log_prefix" "You can start it manually later with: brew services start transmission"
-            log_user_info "$log_prefix" ""
-            log_user_info "$log_prefix" "⚙️ REMINDER: When Transmission is running, configure its download location!"
-            local web_portal_url="http://${transmission_host}"
-            log_user_info "$log_prefix" "   1. Click this link to open Transmission: ${web_portal_url}"
-            log_user_info "$log_prefix" "   2. Click the hamburger menu (≡) at the top right"
-            log_user_info "$log_prefix" "   3. Select 'Edit Preferences' from the menu"
-            log_user_info "$log_prefix" "   4. In the Downloads section, set the Download location to:"
-            log_user_info "$log_prefix" "   ${DROP_FOLDER}"
-            log_user_info "$log_prefix" "   5. Once added, you can safely close the Transmission window"
-            log_user_info "$log_prefix" "   This enables full end-to-end automation for torrents."
-            log_user_info "$log_prefix" "   See 'JellyMac_Getting_Started.txt' for more details on configuration."
+            echo
+            log_user_info "$log_prefix" "💡 When you do start Transmission, you can enable full automation by:"
+            provide_manual_transmission_setup
             return 1
             ;;
     esac
+}
+
+# Function: configure_transmission_download_dir
+# Description: Configures Transmission download directory via API
+# Parameters:
+#   $1: target_dir - The directory path to set as download location
+# Returns:
+#   0 if configuration succeeded
+#   1 if configuration failed
+configure_transmission_download_dir() {
+    local target_dir="$1"
+    local log_prefix="Doctor"
+    
+    log_debug_event "$log_prefix" "🔧 Configuring Transmission download location to: $target_dir"
+    
+    # Build transmission-remote command using existing config variables
+    local transmission_cli="${TORRENT_CLIENT_CLI_PATH:-transmission-remote}"
+    local transmission_host="${TRANSMISSION_REMOTE_HOST:-localhost:9091}"
+    
+    # Build command arguments array
+    declare -a cmd_args=("$transmission_host")
+    [[ -n "$TRANSMISSION_REMOTE_AUTH" ]] && cmd_args+=("--auth" "$TRANSMISSION_REMOTE_AUTH")
+    cmd_args+=("--download-dir" "$target_dir")
+    
+    # Execute the configuration command
+    if "$transmission_cli" "${cmd_args[@]}" >/dev/null 2>&1; then
+        log_debug_event "$log_prefix" "✅ Successfully configured Transmission download directory"
+        return 0
+    else
+        log_debug_event "$log_prefix" "❌ Failed to configure Transmission download directory"
+        return 1
+    fi
+}
+
+# Function: provide_manual_transmission_setup
+# Description: Provides manual Transmission configuration instructions
+# Parameters: None
+# Returns: None
+provide_manual_transmission_setup() {
+    local log_prefix="Doctor"
+    local web_portal_url="http://${TRANSMISSION_REMOTE_HOST:-localhost:9091}"
+    
+    echo
+    log_user_info "$log_prefix" "⚙️ Manual Transmission Configuration:"
+    log_user_info "$log_prefix" "   1. Open Transmission: ${web_portal_url}"
+    log_user_info "$log_prefix" "   2. Click the hamburger menu (≡) at the top right"
+    log_user_info "$log_prefix" "   3. Select 'Edit Preferences' from the menu"
+    log_user_info "$log_prefix" "   4. In the Downloads section, set Download location to:"
+    log_user_info "$log_prefix" "      ${DROP_FOLDER}"
+    log_user_info "$log_prefix" "   5. Save and close - you're all set!"
+    echo
+    log_user_info "$log_prefix" "Once configured, magnet links will be fully automated."
 }
 
 # Function: perform_system_health_checks
@@ -662,6 +771,16 @@ perform_system_health_checks() {
             fi
         fi
     fi
+
+    # --- Validate Configuration Filepaths ---
+    # This is a critical step. If paths are not valid or can't be created, we can't proceed.
+    log_debug_event "$log_prefix" "Validating configured filepaths..."
+    if ! validate_config_filepaths; then
+        # validate_config_filepaths already logs detailed errors
+        log_error_event "$log_prefix" "Critical configuration filepath validation failed. See details above."
+        return 1 # Critical failure
+    fi
+    log_debug_event "$log_prefix" "✅ Configured filepaths validated."
 
     # Check if auto-installation is enabled and Homebrew is available
     if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
