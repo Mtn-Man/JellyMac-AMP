@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # lib/logging_utils.sh
-# Contains common logging functions for the Media Automator project.
+# Contains common logging functions for the JellyMac project.
 
 #===============================================================================
 # Log Level Definitions

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #==============================================================================
-# JELLYMAC AMP CONFIGURATION
+# JELLYMAC CONFIGURATION
 #==============================================================================
 
 ################################################################################
@@ -18,11 +18,12 @@ DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"                 # Your YouTube library f
 JELLYFIN_SERVER="http://your-jellyfin-server-ip:8096"   # Your Jellyfin server URL
 JELLYFIN_API_KEY="your-jellyfin-api-key-here"           # Generate in Jellyfin → API Keys
 
-# === FEATURES TO ENABLE ===
+# === FEATURES ===
 ENABLE_TORRENT_AUTOMATION="true"                        # Process magnet links automatically? (true/false)
 ENABLE_CLIPBOARD_MAGNET="true"                          # Watch clipboard for magnet links? (true/false)
 ENABLE_CLIPBOARD_YOUTUBE="true"                         # Watch clipboard for YouTube links? (true/false)
 SOUND_NOTIFICATION="true"                               # Play sounds for events? (true/false)
+SHOW_STARTUP_BANNER="true"                                   
 
 ################################################################################
 # SYSTEM CONFIGURATION (Works well with defaults - modify only if needed)
@@ -45,7 +46,7 @@ MAX_CONCURRENT_PROCESSORS="2"                            # Maximum number of con
 
 LOG_LEVEL="INFO"                                         # DEBUG, INFO, WARN, ERROR
 LOG_ROTATION_ENABLED="true"                              # Enable daily log rotation
-LOG_FILE_BASENAME="jellymac_amp_log"                     # Base name for log files
+LOG_FILE_BASENAME="jellymac_log"                         # Base name for log files
 LOG_RETENTION_DAYS="7"                                   # Days to keep old log files
 HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"
 
@@ -83,11 +84,11 @@ STABLE_SLEEP_INTERVAL_DROP_FOLDER="10"  # Seconds between stability checks
 # JELLYFIN INTEGRATION
 #==============================================================================
 # These settings control automatic library scanning after media is processed
-# Set to "false" to disable scanning for specific media types
+# Set to "false" to disable scanning for specific media types (enable if using Jellyfin)
 
-ENABLE_JELLYFIN_SCAN_MOVIES="true"      # Scan movie library after adding new movies
-ENABLE_JELLYFIN_SCAN_SHOWS="true"       # Scan TV library after adding new shows  
-ENABLE_JELLYFIN_SCAN_YOUTUBE="false"    # Scan YouTube library after adding new videos
+ENABLE_JELLYFIN_SCAN_MOVIES="false"      # Scan Movie library after adding new movies
+ENABLE_JELLYFIN_SCAN_SHOWS="false"       # Scan Shows library after adding new shows  
+ENABLE_JELLYFIN_SCAN_YOUTUBE="false"     # Scan YouTube library after adding new videos
 
 #==============================================================================
 # TORRENT AUTOMATION

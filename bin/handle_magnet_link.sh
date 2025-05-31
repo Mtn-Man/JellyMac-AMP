@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JellyMac_AMP/bin/handle_magnet_link.sh
+# JellyMac/bin/handle_magnet_link.sh
 # Handles adding a magnet link to the Transmission torrent client.
 # This script is specifically designed for use with 'transmission-remote'.
 # Utilizes functions from lib/common_utils.sh.

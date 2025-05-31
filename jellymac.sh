@@ -1,23 +1,23 @@
 #!/bin/bash
 #==============================================================================
-# JellyMac_AMP/jellymac.sh
+# JellyMac Watcher/jellymac.sh
 #==============================================================================
-# Main watcher script for JellyMac Automated Media Pipeline.
+# Main watcher script for JellyMac Media Automator.
 #
 # Purpose:
 # - Monitors clipboard for YouTube links and magnet URLs
 # - Watches DROP_FOLDER for new media files/folders
 # - Launches appropriate processing scripts for each media type
 # - Manages concurrent processing of multiple media items if desired
-# - Can fully automate the media aquisition pipeline for Jellyfin users (or Plex/Emby)
+# - Can fully automate the media acquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: 0.1.6
+# Version: 0.2.0
 # Last Updated: 2025-05-26
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
-printf "\033]0;JellyMac AMP\007"
+printf "\033]0;JellyMac\007"
 
 # --- Strict Mode ---
 set -eo pipefail # Exit on error, and error on undefined vars (via pipefail implicitly for commands)
@@ -114,14 +114,17 @@ _delete_old_logs() {
     if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$LOG_DIR" || -z "$LOG_FILE_BASENAME" || -z "$LOG_RETENTION_DAYS" || "$LOG_RETENTION_DAYS" -lt 1 ]]; then
         return
     fi
+    
     local retention_days_for_find=$((LOG_RETENTION_DAYS - 1))
     [[ "$retention_days_for_find" -lt 0 ]] && retention_days_for_find=0
     
     if [[ ! -d "$LOG_DIR" ]]; then
         return
     fi
+    
     local old_log_count
     old_log_count=$(find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -print 2>/dev/null | wc -l)
+    
     if [[ "$old_log_count" -gt 0 ]]; then
         find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -delete
     fi
@@ -150,14 +153,11 @@ _ensure_log_file_updated() {
         mkdir -p "$LOG_DIR"
         local mkdir_exit_code=$?
         if [[ $mkdir_exit_code -ne 0 ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Failed to create log directory '$LOG_DIR'. Check permissions and filesystem. Exiting." >&2
-        exit 1
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Failed to create log directory '$LOG_DIR'. Check permissions and filesystem. Exiting." >&2
+            exit 1
+        fi
+        _delete_old_logs
     fi
-    
-    # Use direct echo to avoid triggering logging system recursion
-    echo "🪼 $_WATCHER_LOG_PREFIX $(date '+%Y-%m-%d %H:%M:%S') - Log file for today: $CURRENT_LOG_FILE_PATH" >&2
-    _delete_old_logs
-fi
 }
 _ensure_log_file_updated # Initial setup call
 
@@ -307,7 +307,7 @@ graceful_shutdown_and_cleanup() {
     # shellcheck disable=SC2317
     echo 
     # shellcheck disable=SC2317
-    log_user_shutdown "JellyMac" "👋 Exiting JellyMac AMP..." 
+    log_user_shutdown "JellyMac" "👋 Exiting JellyMac..." 
     #shellcheck disable=SC2317
     if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" > /dev/null; then
         log_user_info "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
@@ -328,9 +328,10 @@ graceful_shutdown_and_cleanup() {
     local processor_string_modified
     # shellcheck disable=SC2317
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-    # shellcheck disable=SC2206 
     # shellcheck disable=SC2317
-    local p_info_array=($processor_string_modified)
+    local p_info_array
+    # shellcheck disable=SC2317
+    read -ra p_info_array <<< "$processor_string_modified"
     # shellcheck disable=SC2317
     set +f 
     # shellcheck disable=SC2317
@@ -366,7 +367,7 @@ graceful_shutdown_and_cleanup() {
     # shellcheck disable=SC2317
     printf "\033]0;%s\007" "${SHELL##*/}" 
     # shellcheck disable=SC2317
-    log_user_info "JellyMac" "JellyMac AMP shutdown complete." 
+    log_user_info "JellyMac" "JellyMac shutdown complete." 
     # shellcheck disable=SC2317
     exit 0 
 }
@@ -383,8 +384,10 @@ manage_active_processors() {
     local still_running_string="" 
     local old_ifs="$IFS"; IFS='|'
     set -f 
-    # shellcheck disable=SC2206 
-    local p_info_array=(${_ACTIVE_PROCESSOR_INFO_STRING//|||/|})
+    local processor_string_modified
+    processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
+    local p_info_array
+    read -ra p_info_array <<< "$processor_string_modified"
     set +f 
     IFS="$old_ifs"
     local entry_count=${#p_info_array[@]}
@@ -440,8 +443,8 @@ is_item_being_processed() {
     # Bash 3.2 compatible: Use explicit string replacement then array assignment
     local processor_string_modified
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-    # shellcheck disable=SC2206 
-    local p_info_array=($processor_string_modified)
+    local p_info_array
+    read -ra p_info_array <<< "$processor_string_modified"
     set +f 
     IFS="$old_ifs"
     local entry_count=${#p_info_array[@]}
@@ -581,8 +584,8 @@ process_drop_folder() {
         # Bash 3.2 compatible: Use explicit string replacement then array assignment
         local processor_string_modified
         processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-        # shellcheck disable=SC2206 
-        local p_array_temp=($processor_string_modified)
+        local p_array_temp
+        read -ra p_array_temp <<< "$processor_string_modified"
         set +f 
         IFS="$old_ifs"
         local p_count=$(( ${#p_array_temp[@]} / 4 )) 
@@ -617,6 +620,24 @@ process_drop_folder() {
     done < "$find_results_file" 
     rm -f "$find_results_file" 
 }
+#==============================================================================
+# Function: show_startup_banner
+# Description: Displays ASCII startup banner if enabled in config
+# Parameters: None
+# Returns: None
+#==============================================================================
+show_startup_banner() {
+    if [[ "${SHOW_STARTUP_BANNER:-true}" != "true" ]]; then
+        return
+    fi
+    
+    echo
+    echo "┌─────────────────────────────────────────────────────────────┐"
+    echo "│                      J E L L Y M A C                        │"
+    echo "│           Automated Media Assistant for macOS               │"
+    echo "└─────────────────────────────────────────────────────────────┘"
+    echo
+}
 
 # --- Main Initialization & Startup ---
 
@@ -634,12 +655,14 @@ fi
 # If we reach here, all critical checks passed, and flock is available.
 
 # Acquire Single Instance Lock (AFTER health checks)
-_acquire_lock # Ensure only one instance of JellyMac runs at a time
+_acquire_lock  # Ensure only one instance of JellyMac runs at a time
 
-log_user_start "JellyMac" "JellyMac AMP Starting..."
-log_user_info "JellyMac" "Version: 0.1.6 ($(date '+%Y-%m-%d %H:%M:%S'))"
+show_startup_banner  # Call the startup banner function if enabled
+
+log_user_info "JellyMac" "🚀 JellyMac Starting..."
+log_user_info "JellyMac" "Version: 0.2.0 ($(date '+%Y-%m-%d %H:%M:%S'))"
 log_user_info "JellyMac" "   Project Root: $JELLYMAC_PROJECT_ROOT"
-log_user_info "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
+log_debug_event "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
     log_user_info "JellyMac" "   Log File: $CURRENT_LOG_FILE_PATH (Retention: ${LOG_RETENTION_DAYS:-7} days)"
 else 
@@ -647,7 +670,7 @@ else
 fi
 
 if [[ ! -d "$STATE_DIR" ]]; then 
-    log_user_info "JellyMac" "🛠️ State directory was created: $STATE_DIR" 
+    log_debug_event "JellyMac" "🛠️ State directory was created: $STATE_DIR" 
 else
     log_debug_event "JellyMac" "✅ State directory OK: $STATE_DIR"
 fi
@@ -683,7 +706,7 @@ for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PRO
         log_error_event "JellyMac" "CRITICAL: Essential program file '$helper_script_path' is not found or not executable. Exiting."
         exit 1
     fi
-done; log_user_info "JellyMac" "✅ Program files are ready to go!."
+done; log_user_info "JellyMac" "✅ All essential program files ready to go!"
 
 if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
     log_user_info "JellyMac" "☕ Starting 'caffeinate' to prevent system sleep..."
@@ -722,7 +745,7 @@ fi
 
 log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
 
-log_user_info "JellyMac" "--- JellyMac AMP Configuration Summary (v0.1.6) ---"
+log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.0) ---"
 log_user_info "JellyMac" "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A}"
 log_user_info "JellyMac" "  Max Concurrent Media Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" "  Desktop Notifications (macOS): ${ENABLE_DESKTOP_NOTIFICATIONS:-false}"
@@ -736,7 +759,7 @@ log_user_info "JellyMac" "  Error/Quarantine Dir: ${ERROR_DIR:-N/A}"
 log_user_info "JellyMac" "  Main Loop Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s"
 log_user_info "JellyMac" "-------------------------------------------------------"
 
-log_user_progress "Scan" "👀 Checking the DROP_FOLDER for media..."
+log_user_info "JellyMac" "🔍 Checking the DROP_FOLDER for movies or shows..."
 process_drop_folder
 if [[ -n "$PBPASTE_CMD" ]]; then
     log_user_info "JellyMac" "📋 Checking the clipboard for links..."; 

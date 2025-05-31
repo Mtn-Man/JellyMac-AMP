@@ -1,25 +1,25 @@
 =================================================================
-JellyMac AMP & *Arr Suite: Cooperative Handoff Guide
+JellyMac & *Arr Suite: Cooperative Handoff Guide
 =================================================================
 
 Why do this?
 ------------
 This setup is mainly for users who already use Sonarr and/or Radarr and want
-to integrate JellyMac AMP into their existing automation workflow. If you do
+to integrate JellyMac into their existing automation workflow. If you do
 not use the Arr apps, or do not need their advanced renaming and metadata
-features, you can use JellyMac AMP on its own — this handoff is not required
+features, you can use JellyMac on its own — this handoff is not required
 nor specifically recommended for normal operation. Please note - adding this step increases
 automation complexity and potential points of failure.
 
 What is the Cooperative Handoff?
 --------------------------------
-JellyMac AMP can work seamlessly with Sonarr (TV) and Radarr (movies).
-JellyMac AMP handles initial downloads and basic filename sanitation, then hands
+JellyMac can work seamlessly with Sonarr (TV) and Radarr (movies).
+JellyMac handles initial downloads and basic filename sanitation, then hands
 off files to Sonarr/Radarr for final renaming, metadata, and library
 management.
 
 Key Points:
-- JellyMac AMP creates simple filenames (e.g., Show Name - S01E01.mkv).
+- JellyMac creates simple filenames (e.g., Show Name - S01E01.mkv).
 - Sonarr/Radarr will rename and enrich these files after import.
 - Jellyfin displays your media correctly as long as filenames include Show
   Name, Season, and Episode (for TV) or Movie Name and Year (for movies).
@@ -28,11 +28,11 @@ Key Points:
 
 Quick Workflow Overview
 -----------------------
-1. Drop or download media into your JellyMac AMP DROP_FOLDER.
-2. JellyMac AMP processes and moves files to a "handoff" folder.
+1. Drop or download media into your JellyMac DROP_FOLDER.
+2. JellyMac processes and moves files to a "handoff" folder.
 3. Sonarr/Radarr monitor the handoff folder, import, rename, and move files
    to your final library.
-4. Jellyfin updates its library (triggered by Sonarr/Radarr or JellyMac AMP).
+4. Jellyfin updates its library (triggered by Sonarr/Radarr or JellyMac).
 
 Setup Steps
 -----------
@@ -42,14 +42,14 @@ If Sonarr/Radarr Are Running Locally on Your Mac
 - You do not need to set up a network share or worry about path mapping.
 - Simply choose or create an empty local folder for your TV and Movie handoff folders
   (e.g., /Users/yourusername/Media_Imports/TV_Handoff).
-- Both JellyMac AMP and Sonarr/Radarr will use the same local paths once
+- Both JellyMac and Sonarr/Radarr will use the same local paths once
   configured.
 - Follow the rest of the steps below, using your chosen local folders for
   both apps.
 
 1. Create Handoff Folders
    - Choose a folder for TV handoff and one for Movie handoff.
-   - Both JellyMac AMP and Sonarr/Radarr must have read/write access.
+   - Both JellyMac and Sonarr/Radarr must have read/write access.
    - Example (local Mac):
        TV:    /Volumes/media_storage/Media_Imports/TV_Handoff
        Movie: /Volumes/media_storage/Media_Imports/Movie_Handoff
@@ -59,7 +59,7 @@ If Sonarr/Radarr Are Running Locally on Your Mac
    - On the server, these might appear as:
        /srv/media_storage/Media_Imports/TV_Handoff
 
-2. Configure JellyMac AMP
+2. Configure JellyMac
    - Edit lib/jellymac_config.sh.
    - Set:
        DEST_DIR_SHOWS  = your TV handoff folder (as seen by your Mac)
@@ -75,15 +75,15 @@ If Sonarr/Radarr Are Running Locally on Your Mac
 
 4. (Optional) Transmission Integration
    - Set Transmission's "Move completed downloads to" path to your JellyMac
-     AMP DROP_FOLDER.
-   - JellyMac AMP will process completed downloads and move them to the
+     DROP_FOLDER.
+   - JellyMac will process completed downloads and move them to the
      handoff folder for Sonarr/Radarr.
 
 Path Mapping Example
 --------------------
   System         | TV Handoff Path Example
   -------------- | ------------------------------------------
-  JellyMac AMP   | /Volumes/media_storage/Media_Imports/TV_Handoff
+  JellyMac       | /Volumes/media_storage/Media_Imports/TV_Handoff
   Sonarr (Linux) | /srv/media_storage/Media_Imports/TV_Handoff
 
 Test Your Setup
@@ -95,25 +95,25 @@ Test Your Setup
 
 Troubleshooting Tips
 --------------------
-- Permissions: Both JellyMac AMP and Sonarr/Radarr must have read/write
+- Permissions: Both JellyMac and Sonarr/Radarr must have read/write
   access to the handoff folders.
 - Path Consistency: Double-check that each app uses the correct path for its
   environment.
-- Logs: Check logs for JellyMac AMP (~/JellyMac_AMP/logs/), Sonarr, and
+- Logs: Check logs for JellyMac (~/JellyMac/logs/), Sonarr, and
   Radarr if files are not imported.
 - Naming: If Sonarr/Radarr do not import a file, check their logs for parsing
   errors.
 
 Summary
 -------
-With this setup, you can use JellyMac AMP for flexible media ingestion and
+With this setup, you can use JellyMac for flexible media ingestion and
 let Sonarr/Radarr handle final organization and metadata. Careful path and
 permission setup is key to a smooth workflow.
 
 ---
 
 Note:
-- If both JellyMac AMP and Sonarr/Radarr (and the Jellyfin server) are
+- If both JellyMac and Sonarr/Radarr (and the Jellyfin server) are
   running on the same Mac, you can use any local folder for handoff—no
   network shares or path mapping needed.
 - The "Drone Factory" folder is deprecated in recent Sonarr versions; use

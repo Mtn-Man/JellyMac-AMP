@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JellyMac_AMP/bin/process_media_item.sh
+# JellyMac/bin/process_media_item.sh
 # Main media processing script. Handles individual media files and folders
 # (e.g., completed torrents or manually dropped files), categorizing
 # and organizing them into final Movie or Show libraries.

@@ -1,12 +1,12 @@
 =================================================================
-               JellyMac AMP Quick Reference
+               JellyMac Quick Reference
 =================================================================
 
 COMMON TASKS
 -----------
 1. Start JellyMac:
    Open Terminal, type:
-   cd ~/JellyMac_AMP
+   cd ~/JellyMac
    ./jellymac.sh
 
 2. Stop JellyMac:
@@ -31,8 +31,8 @@ USEFUL COMMANDS
   transmission-remote --list
 
 * View Logs:
-  cd ~/JellyMac_AMP/logs
-  cat jellymac_automator_log_YYYY-MM-DD.log
+  cd ~/JellyMac/logs
+  cat jellymac_log_YYYY-MM-DD.log
 
 COMMON FIXES
 -----------

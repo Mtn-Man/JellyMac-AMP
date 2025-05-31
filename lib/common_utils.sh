@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # lib/common_utils.sh
-# Contains common utility functions shared across the JellyMac AMP (Automated Media Pipeline) project.
+# Contains common utility functions shared across the JellyMac project.
 # These functions should be as self-contained as possible but rely on
 # logging functions (from logging_utils.sh) and configuration variables
 # (from jellymac_config.sh) being sourced *before* this script.
@@ -204,7 +204,7 @@ get_file_extension() {
 
 #==============================================================================
 # Function: check_available_disk_space
-# Description: Check available disk space before transfer for JellyMac AMP operations.
+# Description: Check available disk space before transfer for JellyMac operations.
 # Parameters:
 #   $1: Destination path to check (directory).
 #   $2: Required size in KB (as an integer string).
@@ -263,7 +263,7 @@ check_available_disk_space() {
 
 #==============================================================================
 # Function: find_executable
-# Description: Finds the path of an executable command needed by JellyMac AMP scripts.
+# Description: Finds the path of an executable command needed by JellyMac scripts.
 #              Checks hint paths and standard system PATH.
 # Parameters:
 #   $1: The executable name (e.g., "yt-dlp", "transmission-remote").

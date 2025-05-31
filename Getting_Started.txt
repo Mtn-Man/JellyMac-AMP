@@ -1,50 +1,53 @@
 =================================================================
-                  JellyMac AMP
+                  JellyMac
          The macOS Automated Media Pipeline
 =================================================================
 
-Welcome to JellyMac AMP! 👋
+Welcome to JellyMac! 👋
 
-This guide will help you set up and use JellyMac AMP (Automated
+This guide will help you set up and use JellyMac (Automated
 Media Pipeline), a tool designed to make managing your media
 library easier on macOS. Whether you're new to media automation
 or a seasoned bash developer, we think this project has
 something to offer for anyone with a media server and a Mac.
 
-JellyMac AMP aims to be a lightweight, macOS-centric automation
+JellyMac aims to be a lightweight, macOS-centric automation
 suite for media management, particularly for users of Jellyfin.
 It leverages Bash scripting and common command-line tools to
 monitor clipboard events (YouTube links, magnet links) and a
 designated "drop folder" for new media. It then processes
-these items — downloading, renaming, organizing — and
-optionally integrates with Jellyfin for library updates.
+these items — downloading, renaming, organizing, transferring (if needed)
+— and optionally integrates with Jellyfin for automatic library updates.
 
 COMPATIBILITY
 ----------------
-JellyMac AMP runs on your Mac to automate your media pipeline.
+JellyMac runs on your Mac to automate your media pipeline.
 While it offers direct library scan integration for Jellyfin
 servers, its core download and organization features are
 designed to work seamlessly with any media server (including
 Plex, Emby, etc.) that monitors standard Movie and TV Show
 folder structures.
 
-The server itself can be on Linux, Windows, macOS, or a NAS,
+The media server itself can be hosted on Linux, Windows, macOS, or a NAS,
 as long as your Mac can write to the media library folders
 (e.g., via network shares like SMB or NFS).
 
 FUNCTIONALITY
 ----------------
-JellyMac AMP simplifies managing your media library by:
+JellyMac simplifies managing your media library by:
 
   1. Watching your clipboard for:
+
      - YouTube links (automatically downloads videos)
      - Magnet links (sends them to Transmission)
 
   2. Monitoring a "drop folder" where you can place:
+
      - Movies (loose files or in folders)
      - TV Show Episodes for organization
 
-  Once JellyMac AMP detects new media, it automatically:
+  Once JellyMac detects new media, it automatically:
+
      - Cleans filenames for better server matching
        (especially for Jellyfin).
      - Moves files to your configured library paths.
@@ -53,12 +56,14 @@ JellyMac AMP simplifies managing your media library by:
 Here's a summary of its capabilities:
 
   1. Process Media Files
+
      - Drop media into the watched `DROP_FOLDER`.
      - Identifies movies and TV shows.
      - Files are cleaned and organized.
      - Associated files (e.g., subtitles) are kept together.
 
   2. Handle YouTube Videos
+
      - Copy a YouTube URL to your clipboard.
      - Videos download at your preferred quality.
      - Placed in your designated YouTube folder (which can
@@ -69,13 +74,16 @@ Here's a summary of its capabilities:
      - Copy a magnet link to your clipboard.
      - Link is automatically added to Transmission.
      - When complete, Transmission can be configured to automatically move
-       the file to your JellyMac AMP `DROP_FOLDER`. JellyMac AMP then
+       the file to your JellyMac `DROP_FOLDER`. JellyMac then
        processes and sorts it into your library
        destination folder
 
+
 BEFORE YOU START
 ----------------
+
 SECURITY NOTE:
+
      - Always review scripts before running them, or use
        an AI tool like ChatGPT to help check them.
      - This project uses third-party tools:
@@ -90,22 +98,22 @@ SECURITY NOTE:
 
 Setup Instructions
 ------------------
+
 You'll need:
 
   1. A Mac running macOS
-     - Officially tested on macOS Sequoia 15.4.1.
-     - Should work on macOS 10.13 High Sierra (2018)
-       and newer.
+     - Tested on macOS Sequoia, Sonoma, Ventura, and Monterey.
+     - Should work on older versions, but dependency availability
+       may vary (testing in progress).
      - Bash 3.2 (pre-installed on modern Macs).
 
   2. Homebrew Package Manager
      - If you don't have it, install from https://brew.sh
-
   3. Required Tools (after installing Homebrew):
-     JellyMac AMP needs `flock`, `yt-dlp`, and
+     JellyMac needs `flock`, `yt-dlp`, and
      `transmission-cli`.
 
-     TIP: On its first run, if JellyMac AMP detects
+     TIP: On its first run, if JellyMac detects
      missing dependencies, it will offer to install
      them for you automatically via Homebrew. You can
      choose a one-time install for the current session
@@ -125,85 +133,111 @@ You'll need:
 
 INSTALLATION
 ------------
-  1. Get Homebrew and the JellyMac_AMP Files:
-       Open Terminal and run each command one at a time:
+  
+  1. Get Homebrew and JellyMac:
+       Open Terminal and run each command one at a time (follow the prompts to install Homebrew first):
+
          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-         (follow the prompts to install Homebrew)
+        
          brew install git
-         git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac_AMP
-         cd JellyMac_AMP
+
+         git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac
+
+         cd JellyMac
+
          chmod +x jellymac.sh bin/*.sh
 
-  2. Set Up Your Configuration File:
-       Copy the example configuration:
+  2. Configure your paths:
+
          cd lib
+
          cp jellymac_config.example.sh jellymac_config.sh
-         cd ..
 
-       Edit your settings (using Finder + TextEdit):
-         - Press Cmd+Shift+H to open your Home Folder in Finder
-         - Navigate to JellyMac_AMP → lib folder
-         - Double-click jellymac_config.sh to open in TextEdit
-         - Adjust paths and settings as needed (see key settings below)
-         - Save with Cmd+S and close TextEdit
+  IMPORTANT: Edit jellymac_config.sh to set your actual media library paths:
 
-       Key settings to configure:
          - DROP_FOLDER: Where you'll drop new media files
-           Default: "$HOME/Downloads/JellyDrop" (works for most users)
+         - DEST_DIR_MOVIES: Your movies folder location
+         - DEST_DIR_SHOWS: Your TV shows folder location  
+         - DEST_DIR_YOUTUBE: Where YouTube downloads go
          
-         - DEST_DIR_MOVIES: Final destination for movies
-           Default: "$HOME/Movies/Movies" 
-           Network example: "/Volumes/Media/Movies"
+       Default paths (edit for your own media library locations or use the default options):
+
+         DROP_FOLDER="$HOME/Downloads/JellyDrop"
+         DEST_DIR_MOVIES="$HOME/Movies/Movies"
+         DEST_DIR_SHOWS="$HOME/Movies/Shows"
+         DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"
          
-         - DEST_DIR_SHOWS: Final destination for TV shows
-           Default: "$HOME/Movies/Shows"
-           Network example: "/Volumes/Media/Shows"
+       To edit the configuration file:
 
-         - DEST_DIR_YOUTUBE: Destination for YouTube videos
-           Default: "$HOME/Movies/YouTube"
+         1. Open Finder
+         2. Press Cmd+Shift+H to open your Home folder
+         3. Navigate to JellyMac → lib folder
+         4. Double-click jellymac_config.sh to open in TextEdit
+         5. Find and edit the file paths to match your setup
+         6. Save the file (Cmd+S) and close TextEdit
 
-       TIP: The defaults work great for local media storage. Only change 
-            paths if you're using network shares or have a specific setup.
+  3. Configure Jellyfin integration for auto updates (optional):
+
+         JELLYFIN_SERVER="http://your-server-ip:8096"
+         JELLYFIN_API_KEY="your-jellyfin-api-key"
        
-       TIP: Network shares (like /Volumes/Media/) must already be mounted 
-            and accessible if used for destination folders
-  3. Configure Jellyfin Integration (Optional):
-       If you want automatic library scans after adding media:
-         In jellymac_config.sh, set:
-           JELLYFIN_SERVER="http://your-server-ip:8096"
-           JELLYFIN_API_KEY="your-jellyfin-api-key"
-
        To get your Jellyfin API key:
+
          1. Open Jellyfin web interface
          2. Click user icon → Dashboard → API Keys
          3. Click "+" to create new key
-         4. Name it "JellyMacAMP" and copy the generated key
+         4. Name it "JellyMac" and copy the generated key
+         5. Paste it into jellymac_config.sh as the JELLYFIN_API_KEY value
 
-  4. Start JellyMac AMP:
-       Return to Terminal and run:
+       After configuring your JELLYFIN_SERVER and JELLYFIN_API_KEY,
+       if you want JellyMac to automatically trigger library scans in Jellyfin,
+       you must also enable the corresponding scan features in your
+       lib/jellymac_config.sh file by setting them to "true":
+
+         ENABLE_JELLYFIN_SCAN_MOVIES="true"
+         ENABLE_JELLYFIN_SCAN_SHOWS="true"
+         ENABLE_JELLYFIN_SCAN_YOUTUBE="true"
+
+  4. Run JellyMac:
+         
+         cd ~/JellyMac
+
          ./jellymac.sh
 
-       On first run, JellyMac AMP will:
-         - Check for missing dependencies
-         - Offer to install them automatically
-         - Create necessary folders
-         - Set up Transmission service if needed (for magnet links)
-         - Guide you through any remaining setup
+The interactive setup wizard will:
 
-  5. Complete Magnet Link Automation Setup:
-  
-       After JellyMac AMP enables Transmission during first run, you'll need to
-       configure the download location for full end-to-end automation.
-       
-       JellyMac AMP will provide a link and detailed instructions, but here's
-       what you'll need to do:
-       
+• Check for missing dependencies and offer to install them
+• Validate your configured paths and create missing directories
+• Set up Transmission service for magnet links
+• Offer automatic Transmission download location configuration
+
+
+FIRST RUN EXPERIENCE
+-------------------
+
+After you run `./jellymac.sh`, the setup assistant will guide you through:
+
+• Dependency checks and automated installation offers
+• Path validation and directory creation
+• Transmission service setup for magnet link automation
+• Automatic Transmission download location configuration (recommended)
+
+Complete Magnet Link Automation Setup:
+
+JellyMac will automatically offer to configure Transmission during setup.
+When prompted with "Auto-configure Transmission download location? (Y/n):",
+press Enter (or Y) to let JellyMac configure everything automatically.
+
+This automatic setup will:
+• Set Transmission's download location to your DROP_FOLDER
+• Enable the complete automation chain without manual configuration
+
+If automatic configuration fails or you prefer manual setup:
        a) Open http://localhost:9091 in your browser
        b) Click the hamburger menu (≡) at the top right  
        c) Select 'Edit Preferences' from the menu
        d) In the Downloads section, set Download location to your DROP_FOLDER:
           Example: /Users/YourName/Downloads/JellyDrop
-       e) Optional: Enable "Use incomplete download folder" for extra safety
        
        This enables the full automation chain:
        Copy magnet link → Transmission downloads → JellyMac processes → 
@@ -213,69 +247,72 @@ INSTALLATION
        - Start service: brew services start transmission
        - Stop service: brew services stop transmission  
        - Restart service: brew services restart transmission
-  
-  6. Sonarr/Radarr Integration (Optional):
-       See `Arr_Suite_Handoff_Guide.txt` in the main
-       JellyMac_AMP folder for instructions if you use
-       Sonarr or Radarr.
-
-FIRST RUN & USAGE
------------------
-  1. Initial Checks:
-       When you first run `./jellymac.sh`, it performs
-       health checks for dependencies and validates key
-       paths from `lib/jellymac_config.sh`. Pay attention
-       to any error or warning messages, as they will
-       guide you to fix common setup issues.
-
-  2. Start It Up:
-       In your Terminal, navigate to the JellyMac_AMP folder:
-                First, run:  cd ~/JellyMac_AMP
-       Then run the script:  ./jellymac.sh
-
-  3. Use It:
-       - Drop or download media (movies or shows) into your `DROP_FOLDER`.
-       - Copy YouTube URLs to your clipboard.
-       - Copy magnet links to your clipboard.
-       - Watch the Terminal window for progress logs.
-       - Check macOS notifications (if enabled).
-       - Listen for the sound notifications (if enabled).
 
 
-  4. When Done:
-       Press Ctrl+C in the Terminal window to stop JellyMac AMP.
+DAILY USAGE
+-----------
 
-NETWORK SETUP (If media server is remote)
+Once setup is complete:
+
+  Starting JellyMac:
+       cd ~/JellyMac
+       ./jellymac.sh
+
+  Using JellyMac:
+       - Drop media files into your configured DROP_FOLDER
+       - Copy YouTube URLs to your clipboard
+       - Copy magnet links to your clipboard
+       - Watch the Terminal window for progress logs
+       - Check macOS notifications (if enabled)
+
+  Stopping JellyMac:
+       Press Ctrl+C in the Terminal window
+
+
+ADVANCED: Sonarr/Radarr Integration
+----------------------------------
+
+See `Arr_Suite_Handoff_Guide.txt` in the main JellyMac folder for 
+instructions if you use Sonarr or Radarr.
+
+
+NETWORK SETUP (If your media server is on another computer)
 -----------------------------------------
+
 If your media library folders (e.g., Movies, Shows) are on a
-NAS or another computer, ensure they are mounted on your Mac:
+NAS or another computer on the network, create a network share, then ensure it is mounted on your Mac:
 
   1. Mount Your Media Shares:
+
        - In Finder, press Cmd+K (Go > Connect to Server...).
        - Enter the server address, e.g.,
          `smb://server-ip/MediaShareName` or
-         `nfs://server-ip/path/to/export`.
+         `nfs://server-ip/path/to/export`
        - Ensure the mount point matches what you've set for
          `DEST_DIR_MOVIES`, etc., in `lib/jellymac_config.sh`
          (e.g., `/Volumes/MediaShareName/Movies`).
 
   2. Test Your Setup:
+
        - Can you access your media server (Jellyfin, Plex)
-         from your Mac's browser?
+         from your Mac's Finder?
        - Can you manually copy a file from your Mac to the
          mounted network shares in Finder?
        - Is your network connection stable?
 
+
 TROUBLESHOOTING
 ---------------
   1. Common Issues:
+
        - Permission Problems:
-           JellyMac AMP needs to read from your `DROP_FOLDER`
+
+           JellyMac needs to read from your `DROP_FOLDER`
            and write to your destination directories.
            * Check ownership/permissions: `ls -la [directory]`
-           * Fix (example): `chmod u+rwx [directory]`
-             (Gives your user read, write, execute.
-              Adjust as needed for your setup.)
+           * Fix (example): 
+           
+           chmod u+rwx [directory]             (Gives your user read, write, execute)
 
        - Network Share Issues:
            * Ensure shares are mounted before starting.
@@ -286,36 +323,44 @@ TROUBLESHOOTING
        - "Command not found" for `yt-dlp`, `flock`, etc.:
            * Ensure Homebrew is installed and its bin directory
              (usually `/opt/homebrew/bin`) is in your PATH.
-           * Let JellyMac AMP's first-run interactive setup
+           * Let JellyMac's first-run interactive setup
              install them, or install them manually.
 
   2. View the Logs:
        Logs are crucial for diagnosing issues.
-       Location: `~/JellyMac_AMP/logs/`
+       Location: `~/JellyMac/logs/`
        Current log: `jellymac_automator_log_YYYY-MM-DD.log`
 
   3. Starting Over / Re-checking Config:
-       - Stop JellyMac AMP (Ctrl+C in Terminal).
+       - Stop JellyMac (Ctrl+C in Terminal).
        - Carefully review paths in `lib/jellymac_config.sh`.
        - Verify network shares are mounted and writable.
        - Re-run: `./jellymac.sh`
          (It will re-validate dependencies and paths).
 
+
 ROADMAP AND FUTURE PLANS
 ------------------------
-JellyMac AMP is in active development. Planned features:
+
+JellyMac is in active development.
+Planned features include:
   - Music file support.
   - Movie/TV Show collection/pack handling.
   - YouTube playlist support.
   - Enhanced metadata extraction.
   - Improved file recognition and filtering.
-  - Youtube -> .mp3 options
+  - YouTube to .mp3 conversion options.
 
 Current development is focused on polishing existing
-functionality. Your feedback is valuable, if you find bugs
-or have any suggestions or ideas for new features, please submit them on our GitHub page,
-or contact me directly: elisher@duck.com
+functionality.
 
-Thank you for giving JellyMac AMP a chance!
+Your feedback is incredibly valuable!
+If you find bugs, or have suggestions for new features,
+please submit them on our project's GitHub page.
+
+You can also contact me directly:
+  elisher@duck.com
+
+Thank you for giving JellyMac a chance!
 
 Happy automating!

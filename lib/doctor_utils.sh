@@ -158,11 +158,11 @@ handle_missing_dependencies_interactively() {
     clear
     
     # Print welcome header with colorful border
-    echo -e "\033[36m+--------------------------------------------------------+\033[0m"
-    echo -e "\033[36m|\033[0m       \033[1m\033[33mWelcome to JellyMac AMP - First Time Setup\033[0m       \033[36m|\033[0m"
-    echo -e "\033[36m+--------------------------------------------------------+\033[0m"
+    echo -e "\033[36m+----------------------------------------------------+\033[0m"
+    echo -e "\033[36m|\033[0m       \033[1m\033[33mWelcome to JellyMac - First Time Setup\033[0m       \033[36m|\033[0m"
+    echo -e "\033[36m+----------------------------------------------------+\033[0m"
     echo
-    echo -e "\033[1mWe noticed this is your first time running JellyMac AMP.\033[0m"
+    echo -e "\033[1mWe noticed this is your first time running JellyMac.\033[0m"
     echo "Before we can start automating your media library, we need to set up a few things."
     echo
     echo -e "\033[33mMissing Programs:\033[0m"
@@ -174,7 +174,7 @@ handle_missing_dependencies_interactively() {
     done
     
     echo
-    echo "These helper programs are needed for JellyMac AMP to work properly with your media files."
+    echo "These helper programs are needed for JellyMac to work properly with your media files."
     echo
     
     # Present options
@@ -200,7 +200,7 @@ handle_missing_dependencies_interactively() {
             if [[ $install_status -eq 0 ]]; then
                 echo
                 echo -e "\033[32m✓\033[0m Successfully installed all programs!"
-                echo "JellyMac AMP will now continue with startup..."
+                echo "JellyMac will now continue with startup..."
                 echo
                 sleep 2
             fi
@@ -250,7 +250,7 @@ handle_missing_dependencies_interactively() {
                 if [[ $install_status -eq 0 ]]; then
                     echo
                     echo -e "\033[32m✓\033[0m Successfully installed all programs!"
-                    echo "JellyMac AMP will now continue with startup..."
+                    echo "JellyMac will now continue with startup..."
                     echo
                     echo "In the future, any missing programs will be installed automatically."
                     sleep 2
@@ -274,13 +274,13 @@ handle_missing_dependencies_interactively() {
             ;;
             
         4)  # Exit and read guide
-            log_user_info "$log_prefix" "Exiting JellyMac AMP setup."
+            log_user_info "$log_prefix" "Exiting JellyMac setup."
             echo
             echo "To get started, please read the Getting Started guide:"
             echo -e "  \033[36m$JELLYMAC_PROJECT_ROOT/JellyMac_Getting_Started.txt\033[0m"
             echo
             echo "This guide will walk you through:"
-            echo "  • Setting up all required programs for JellyMac AMP to work properly"
+            echo "  • Setting up all required programs for JellyMac to work properly"
             echo "  • Configuring your media folders"
             echo "  • Connecting to your Jellyfin server"
             echo "  • And more!"
@@ -327,7 +327,7 @@ is_volume_mounted() {
 # Main validation function, updated with volume mount checks
 validate_config_filepaths() {
     local log_prefix="Doctor"
-    log_user_info "$log_prefix" "🔍 Validating configuration filepaths, this may take a moment..."
+    log_debug_event "$log_prefix" "🔍 Validating configuration filepaths, this may take a moment..."
     local validation_failed=false
     
     # --- Required Directories ---
@@ -453,7 +453,7 @@ validate_config_filepaths() {
         log_error_event "$log_prefix" "❌ Configuration validation failed. Please fix the issues above."
         return 1
     else
-        log_user_info "$log_prefix" "✅ All configuration filepaths validated successfully."
+        log_debug_event "$log_prefix" "✅ All configuration filepaths validated successfully."
         return 0
     fi
 }
@@ -685,7 +685,7 @@ provide_manual_transmission_setup() {
 # Side Effects: Exits with code 1 if any critical command is missing
 perform_system_health_checks() {
     local log_prefix="Doctor"
-    log_user_info "$log_prefix" "💊 Performing system health checks..."
+    log_debug_event "$log_prefix" "💊 Performing system health checks..."
     local any_optional_missing=false
 
     # Collect all missing dependencies (using Bash 3.2 compatible approach)
@@ -761,7 +761,7 @@ perform_system_health_checks() {
             done # End of loop through missing_deps
 
             if [[ "$critical_failure_detected" == "true" ]]; then
-                log_error_event "$log_prefix" "One or more critical programs are missing. JellyMac AMP cannot continue."
+                log_error_event "$log_prefix" "One or more critical programs are missing. JellyMac cannot continue."
                 log_user_info "$log_prefix" "Please review the errors above, install the missing programs (e.g., using 'brew install <program>'), or ensure AUTO_INSTALL_DEPENDENCIES is enabled in your config."
                 return 1 
             else
@@ -819,7 +819,7 @@ perform_system_health_checks() {
         for core_tool in "${core_tools[@]}"; do
             if ! command -v "$core_tool" >/dev/null 2>&1; then
                 log_error_event "$log_prefix" "❌ Core macOS tool '$core_tool' is missing. This indicates a corrupted system."
-                log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac AMP."
+                log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac."
                 exit 1
             fi
         done
@@ -836,7 +836,7 @@ perform_system_health_checks() {
         fi
     fi
     
-    log_user_info "$log_prefix" "✅ System health checks passed."
+    log_debug_event "$log_prefix" "✅ System health checks passed."
     
     if [[ "$any_optional_missing" == "true" ]]; then
         log_warn_event "$log_prefix" "🩺 Some optional system health checks failed. Review warnings above."
