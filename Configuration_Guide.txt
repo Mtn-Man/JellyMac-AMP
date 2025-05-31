@@ -58,8 +58,8 @@ Note: Requires Homebrew to be installed on your Mac.
 If "false", you must install dependencies manually.
 
 MAIN_LOOP_SLEEP_INTERVAL
-Purpose: Sets how often (in seconds) the main JellyMac
-AMP script checks for new clipboard content and scans
+Purpose: Sets how often (in seconds) the main JellyMac 
+script checks for new clipboard content and scans
 the drop folder.
 Units: Seconds
 Range: 1-60 (recommended)
@@ -424,7 +424,7 @@ Note: Only works on macOS. Requires afplay.
 SOUND_INPUT_DETECTED_FILE
 Purpose: Path to the sound file (.aiff, .mp3, .wav, etc.)
 played when new input (e.g., clipboard link, new file
-in drop folder) is detected by JellyMac AMP.
+in drop folder) is detected by JellyMac.
 Default: "/System/Library/Sounds/Funk.aiff"
 
 SOUND_TASK_SUCCESS_FILE
