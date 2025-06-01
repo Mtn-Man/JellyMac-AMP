@@ -619,7 +619,7 @@ process_drop_folder() {
             log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) already processing. Skipping."; continue
         fi
 
-        log_user_info "JellyMac" "Checking stability for an item in your Drop Folder: '$item_basename'"
+        log_debug_event "JellyMac" "Checking stability for an item in your Drop Folder: '$item_basename'"
         if ! wait_for_file_stability "$item_path" "${STABLE_CHECKS_DROP_FOLDER:-3}" "${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}"; then
             log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) not stable. Will re-check next cycle."; continue
         fi

@@ -68,7 +68,7 @@ ASSOCIATED_FILE_EXTENSIONS=(".srt" ".sub" ".ass" ".idx" ".vtt" ".nfo")
 # Filename Cleaning
 # To add new tags: separate with | (pipe character). Example: "NewTag|AnotherTag"
 # To customize: modify the list below, keeping existing tags or removing unwanted ones
-MEDIA_TAG_BLACKLIST="1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\.1|AAC|AC3|x265|x264|HEVC|H\.264|H\.265|REMUX|NeoNoir"
+MEDIA_TAG_BLACKLIST="1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\.1|AAC|AC3|x265|x264|HEVC|H\.264|H\.265|REMUX|NeoNoir|SDrip|Re-Encoded"
 
 # Transfer Settings
 PERFORM_POST_TRANSFER_DELETE="true"  # Delete source files after successful transfer to destination

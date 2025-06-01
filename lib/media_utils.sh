@@ -230,23 +230,51 @@ extract_and_sanitize_show_info() {
 # Function to extract and sanitize movie information.
 # Improved movie info extraction for filenames like:
 #   A.Minecraft.Movie.2025.1080p.WEB-DL.DDP5.1.x265-NeoNoir.mkv -> A Minecraft Movie (2025)
+#   Thunderbolts (2025) 1080p SDrip x264 AC3 Re-Encoded [700MB] - OneHack.mp4 -> Thunderbolts (2025)
 extract_and_sanitize_movie_info() {
     local filename="$1"
     local name_no_ext="${filename%.*}"
     local name_spaced="${name_no_ext//[._]/ }"
     
-    # Clean brackets and parentheses at start/end (like TV show function)
-    name_spaced=$(echo "$name_spaced" | sed -E \
-        -e 's/^[\[\(][^\]\)]*[\]\)]//g' \
-        -e 's/[\[\(][^\]\)]*[\]\)]$//g' \
-    )
+    # Remove release group at the end (e.g., "- OneHack", "- NeoNoir")
+    name_spaced=$(echo "$name_spaced" | sed -E 's/ - [a-zA-Z0-9]+$//g')
+    
+    # Remove bracketed content like [700MB], [RARBG], etc.
+    name_spaced=$(echo "$name_spaced" | sed -E 's/\[[^\]]*\]//g')
+    
+    # Clean multiple spaces that might result from removals
+    name_spaced=$(echo "$name_spaced" | tr -s ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
     
     local tag_regex="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\\.1|AAC|AC3|x265|x264|HEVC|H\\.264|H\\.265|REMUX|NeoNoir}"
     
+    # Remove quality/encoding tags
     local cleaned_name
-    cleaned_name=$(echo "$name_spaced" | sed -E "s/ ?($tag_regex)( |$)/ /gI" | tr -s ' ')
+    cleaned_name=$(echo "$name_spaced" | sed -E "s/ ($tag_regex)( |$)/ /gI" | tr -s ' ')
     
+    # STEP 1: Check if year is already in parentheses (like "Thunderbolts (2025)")
+    if [[ $cleaned_name =~ ^(.*[[:space:]])\(([12][0-9]{3})\)(.*)$ ]]; then
+        local title_part="${BASH_REMATCH[1]}"
+        local year="${BASH_REMATCH[2]}"
+        local remaining="${BASH_REMATCH[3]}"
+        
+        # If there's minimal content after the year, accept this format
+        if [[ ${#remaining} -lt 10 ]]; then
+            # Clean title and keep the year
+            title_part=$(echo "$title_part" | sed -E 's/[[:space:]]*$//')
+            title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
+            title_part=$(sanitize_filename "$title_part" "Unknown Movie")
+            
+            # Validate year before returning
+            if is_valid_media_year "$year"; then
+                echo "$title_part ($year)"
+                return 0
+            fi
+        fi
+    fi
+    
+    # STEP 3: Fallback to existing logic for other year formats
     local year=""
+    local title_part
     if [[ $cleaned_name =~ .*(^|[^0-9])([12][0-9]{3})($|[^0-9]) ]]; then
         year="${BASH_REMATCH[2]}"
         
@@ -263,13 +291,21 @@ extract_and_sanitize_movie_info() {
         title_part="$cleaned_name"
     fi
     
-    title_part="$(echo "$title_part" | sed -E 's/^ +| +$//g')"
+    # STEP 4: Title case and sanitization
+    title_part=$(echo "$title_part" | sed -E 's/^ +| +$//g')
+    title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
+    title_part=$(sanitize_filename "$title_part" "Unknown Movie")
     
-    title_part="$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')"
-    
+    # Final validation and formatting
     if [[ -n "$year" ]]; then
-        echo "$title_part ($year)"
+        if is_valid_media_year "$year"; then
+            echo "$title_part ($year)"
+        else
+            # Year was present but invalid
+            echo "$title_part"
+        fi
     else
+        # Year was not present
         echo "$title_part"
     fi
 }
