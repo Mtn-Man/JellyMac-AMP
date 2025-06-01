@@ -1,4 +1,5 @@
 # 🪼 JellyMac
+
 ### Automated Media Assistant for macOS
 
 Transform media chaos into organized bliss with just a copy or a drop.

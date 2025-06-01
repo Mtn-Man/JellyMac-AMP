@@ -4,7 +4,7 @@
 # Contains utility functions specific to the JellyMac.sh watcher script,
 # primarily for performing system health checks.
 # This script should be sourced by JellyMac.sh AFTER
-# logging_utils.sh, combined.conf.sh, and common_utils.sh have been sourced,
+# logging_utils.sh, combined.conf.sh, and common_utils.sh
 # and SCRIPT_CURRENT_LOG_LEVEL is set.
 
 # Function: normalize_user_response
@@ -162,36 +162,37 @@ handle_missing_dependencies_interactively() {
     echo -e "\033[36m|\033[0m       \033[1m\033[33mWelcome to JellyMac - First Time Setup\033[0m       \033[36m|\033[0m"
     echo -e "\033[36m+----------------------------------------------------+\033[0m"
     echo
-    echo -e "\033[1mWe noticed this is your first time running JellyMac.\033[0m"
-    echo "Before we can start automating your media library, we need to set up a few things."
-    echo
-    echo -e "\033[33mMissing Programs:\033[0m"
+    log_user_info "$log_prefix" "We noticed this is your first time running JellyMac."
+    log_user_info "$log_prefix" "Before we can start automating your media library, we need to set up a few things."
+    log_user_info "$log_prefix" ""
+    log_user_info "$log_prefix" "Missing Programs:"
     
     # Print each missing dependency with package info
     for ((i=0; i<${#missing_deps[@]}; i++)); do
         local dep="${missing_deps[$i]}"
-        echo -e "  \033[31m•\033[0m $dep"
+        log_user_info "$log_prefix" "  • $dep"
     done
     
-    echo
-    echo "These helper programs are needed for JellyMac to work properly with your media files."
-    echo
+    log_user_info "$log_prefix" ""
+    log_user_info "$log_prefix" "These helper programs are needed for JellyMac to work properly with your media files."
+    log_user_info "$log_prefix" ""
     
     # Present options
     echo -e "\033[1mHow would you like to proceed?\033[0m"
     echo -e "  \033[32m1)\033[0m Install missing programs now (just this once)"
-    echo -e "  \033[32m2)\033[0m Automatically install missing programs in the future (recommended)"
+    echo -e "  \033[32m2)\033[0m Auto-install programs now and future runs (recommended) \033[33m[DEFAULT]\033[0m"
     echo -e "  \033[32m3)\033[0m Skip and continue anyway (some features may not work)"
     echo -e "  \033[32m4)\033[0m Exit and read the Getting Started guide first"
     echo
     
-    # Get user input
+    # Get user input with flexible handling
     local selection
-    read -r -p "Select an option [1-4]: " selection
+    read -r -p "Select an option [1-4] (2): " selection
     
-    case "$selection" in
-        1)  # Install dependencies now (one-time)
-            echo -e "\033[1mInstalling programs for this run only...\033[0m"
+    # Normalize the response - empty string defaults to "2"
+    case "$(echo "${selection:-2}" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" in
+        1|one)  # Install dependencies now (one-time)
+            log_user_info "$log_prefix" "Installing programs for this run only..."
             AUTO_INSTALL_DEPENDENCIES="true"
             install_missing_dependencies "${missing_deps[@]}"
             local install_status=$?
@@ -208,8 +209,8 @@ handle_missing_dependencies_interactively() {
             return $install_status
             ;;
             
-        2)  # Enable automatic installation (permanent)
-            echo -e "\033[1mEnabling automatic program installation...\033[0m"
+        ""|2|two)  # Enable automatic installation (permanent) - DEFAULT
+            log_user_info "$log_prefix" "Enabling automatic program installation..."
             
             # Determine the directory of the currently executing script (doctor_utils.sh)
             local script_dir
@@ -264,7 +265,7 @@ handle_missing_dependencies_interactively() {
             fi
             ;;
             
-        3)  # Skip and continue
+        3|three)  # Skip and continue
             log_user_info "$log_prefix" "⚠️  Continuing without required programs. Some features may not work correctly."
             echo "You can install the missing programs later by running:"
             echo "  brew install ${missing_deps[*]}"
@@ -273,7 +274,7 @@ handle_missing_dependencies_interactively() {
             return 0
             ;;
             
-        4)  # Exit and read guide
+        4|four)  # Exit and read guide
             log_user_info "$log_prefix" "Exiting JellyMac setup."
             echo
             echo "To get started, please read the Getting Started guide:"
@@ -290,9 +291,60 @@ handle_missing_dependencies_interactively() {
             exit 1
             ;;
             
-        *)  # Invalid selection
-            log_user_info "$log_prefix" "Invalid selection. Exiting."
-            exit 1
+        *)  # Invalid selection - default to option 2
+            log_user_info "$log_prefix" "Invalid selection. Defaulting to option 2 (recommended)."
+            log_user_info "$log_prefix" "Enabling automatic program installation..."
+            # Fall through to option 2 behavior
+            
+            # Determine the directory of the currently executing script (doctor_utils.sh)
+            local script_dir
+            script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+            local config_file="${script_dir}/jellymac_config.sh"
+            
+            log_user_info "$log_prefix" "Attempting to update config file: '$config_file'"
+
+            if [[ -f "$config_file" && -w "$config_file" ]]; then
+                # Create a backup of the config file first
+                cp "$config_file" "${config_file}.bak"
+                log_user_info "$log_prefix" "Created backup of config file: '${config_file}.bak'"
+                
+                # Use macOS-compatible sed syntax with a more robust pattern
+                local sed_pattern='s/^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"false".*/AUTO_INSTALL_DEPENDENCIES="true"/'
+                if [[ "$(uname)" == "Darwin" ]]; then
+                    sed -i '' "$sed_pattern" "$config_file"
+                else
+                    # Linux/other systems
+                    sed -i "$sed_pattern" "$config_file"
+                fi
+                
+                # Verify that the change was successful
+                if grep -q '^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"true"' "$config_file"; then
+                    log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true in '$config_file'"
+                else
+                    log_error_event "$log_prefix" "❌ Failed to verify update of AUTO_INSTALL_DEPENDENCIES to true in '$config_file'."
+                    log_user_info "$log_prefix" "The line might not have matched or sed command failed. Original setting may persist."
+                    # Attempt to proceed with installation as user intended to enable it.
+                fi
+                
+                # Try installation with new setting
+                AUTO_INSTALL_DEPENDENCIES="true"
+                install_missing_dependencies "${missing_deps[@]}"
+                local install_status=$?
+                
+                if [[ $install_status -eq 0 ]]; then
+                    log_user_info "$log_prefix" "✅ Successfully installed all programs!"
+                    log_user_info "$log_prefix" "JellyMac will now continue with startup..."
+                    log_user_info "$log_prefix" ""
+                    log_user_info "$log_prefix" "In the future, any missing programs will be installed automatically."
+                    sleep 2
+                fi
+                
+                return $install_status
+            else
+                log_user_info "$log_prefix" "❌ Could not update config file '$config_file'. File not found or not writable."
+                log_user_info "$log_prefix" "Please ensure '$config_file' exists, has write permissions, and then set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
+                return 1
+            fi
             ;;
     esac
 }
@@ -514,15 +566,16 @@ offer_transmission_service_enablement() {
     echo "This will allow Transmission to start automatically on login."
     echo
     
-    # Get user input
+    # Get user input with flexible handling
     local response
-    read -r -p "Enable Transmission service? (y/n): " response
+    read -r -p "Enable Transmission service? (Y/n): " response
     
-    # Convert to lowercase for easier matching (Bash 3.2 compatible)
-    response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+    # Use our normalize_user_response function
+    local normalized_response
+    normalized_response=$(normalize_user_response "$response")
     
-    case "$response" in
-        y|yes)
+    case "$normalized_response" in
+        "yes")
             log_user_info "$log_prefix" "🚀 Starting Transmission as a background service..."
             
             # Start the service
@@ -553,49 +606,62 @@ offer_transmission_service_enablement() {
                     echo "  📋 Copy magnet link → 🌐 Transmission downloads → 📁 JellyMac organizes → 📺 Library updated"
                     echo
                     
-                    # Get user input with robust handling
+                    # Get user input with flexible handling
                     local config_response
-                    while true; do
-                        read -r -p "Auto-configure download location? (Y/n): " config_response
-                        
-                        local normalized_response
-                        normalized_response=$(normalize_user_response "$config_response")
-                        
-                        case "$normalized_response" in
-                            "yes")
-                                log_user_info "$log_prefix" "🔧 Configuring Transmission download location..."
-                                
-                                if configure_transmission_download_dir "$DROP_FOLDER"; then
-                                    echo
-                                    echo -e "\033[32m🎉 Perfect! Full automation is now enabled!\033[0m"
-                                    echo -e "\033[32m✓\033[0m Transmission will download to: $DROP_FOLDER"
-                                    echo -e "\033[32m✓\033[0m JellyMac will automatically process completed downloads"
-                                    echo -e "\033[32m✓\033[0m Your media library will be updated automatically"
-                                    echo
-                                    echo "🚀 You can now copy magnet links and watch the magic happen!"
-                                    echo "   The Transmission web interface is available at: http://${transmission_host}"
-                                else
-                                    echo
-                                    echo -e "\033[33m⚠️  Auto-configuration failed. Let's set it up manually:\033[0m"
-                                    # Fall back to manual instructions
-                                    provide_manual_transmission_setup
-                                fi
-                                break
-                                ;;
-                                
-                            "no")
+                    read -r -p "Auto-configure download location? (Y/n): " config_response
+                    
+                    local normalized_response
+                    normalized_response=$(normalize_user_response "$config_response")
+                    
+                    case "$normalized_response" in
+                        "yes")
+                            log_user_info "$log_prefix" "🔧 Configuring Transmission download location..."
+                            
+                            if configure_transmission_download_dir "$DROP_FOLDER"; then
                                 echo
-                                log_user_info "$log_prefix" "Skipping automatic configuration."
-                                echo "You can configure Transmission manually when ready:"
+                                echo -e "\033[32m🎉 Perfect! Full automation is now enabled!\033[0m"
+                                echo -e "\033[32m✓\033[0m Transmission will download to: $DROP_FOLDER"
+                                echo -e "\033[32m✓\033[0m JellyMac will automatically process completed downloads"
+                                echo -e "\033[32m✓\033[0m Your media library will be updated automatically"
+                                echo
+                                echo "🚀 You can now copy magnet links and watch the magic happen!"
+                                echo "   The Transmission web interface is available at: http://${transmission_host}"
+                            else
+                                echo
+                                echo -e "\033[33m⚠️  Auto-configuration failed. Let's set it up manually:\033[0m"
+                                # Fall back to manual instructions
                                 provide_manual_transmission_setup
-                                break
-                                ;;
-                                
-                            "invalid")
-                                echo -e "\033[31mPlease enter 'y' for yes or 'n' for no.\033[0m"
-                                ;;
-                        esac
-                    done
+                            fi
+                            ;;
+                            
+                        "no")
+                            echo
+                            log_user_info "$log_prefix" "Skipping automatic configuration."
+                            echo "You can configure Transmission manually when ready:"
+                            provide_manual_transmission_setup
+                            ;;
+                            
+                        "invalid")
+                            log_user_info "$log_prefix" "Invalid response. Defaulting to 'yes' (recommended)."
+                            log_user_info "$log_prefix" "🔧 Configuring Transmission download location..."
+                            
+                            if configure_transmission_download_dir "$DROP_FOLDER"; then
+                                echo
+                                echo -e "\033[32m🎉 Perfect! Full automation is now enabled!\033[0m"
+                                echo -e "\033[32m✓\033[0m Transmission will download to: $DROP_FOLDER"
+                                echo -e "\033[32m✓\033[0m JellyMac will automatically process completed downloads"
+                                echo -e "\033[32m✓\033[0m Your media library will be updated automatically"
+                                echo
+                                echo "🚀 You can now copy magnet links and watch the magic happen!"
+                                echo "   The Transmission web interface is available at: http://${transmission_host}"
+                            else
+                                echo
+                                echo -e "\033[33m⚠️  Auto-configuration failed. Let's set it up manually:\033[0m"
+                                # Fall back to manual instructions
+                                provide_manual_transmission_setup
+                            fi
+                            ;;
+                    esac
                     
                     return 0
                 else
@@ -612,7 +678,10 @@ offer_transmission_service_enablement() {
             fi
             ;;
             
-        *)  # Any other input is considered "no"
+        "no"|"invalid")  # Handle both explicit "no" and invalid input
+            if [[ "$normalized_response" == "invalid" ]]; then
+                log_user_info "$log_prefix" "Invalid response. Defaulting to 'no'."
+            fi
             log_user_info "$log_prefix" "User declined to start Transmission service"
             log_warn_event "$log_prefix" "⚠️ Magnet link handling will be unavailable until Transmission is running"
             log_user_info "$log_prefix" "You can start it manually later with: brew services start transmission"

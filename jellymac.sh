@@ -63,7 +63,7 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
         log_user_info "JELLYMAC_SETUP" "   You can customize paths later by editing lib/jellymac_config.sh"
         log_user_info "JELLYMAC_SETUP" ""
         
-        read -r -p "Create default config? (Y/n): " response
+         read -r -p "Create default config? (Y/n): " response
         
         case "$(echo "$response" | tr '[:upper:]' '[:lower:]')" in
             ""|y|yes)
@@ -76,7 +76,13 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
                     exit 1
                 fi
                 ;;
+            n|no)
+                log_user_info "JELLYMAC_SETUP" "Setup cancelled. Please create config manually:"
+                log_user_info "JELLYMAC_SETUP" "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
+                exit 1
+                ;;
             *)
+                log_user_info "JELLYMAC_SETUP" "Invalid response. Please enter 'yes' or 'no'."
                 log_user_info "JELLYMAC_SETUP" "Setup cancelled. Please create config manually:"
                 log_user_info "JELLYMAC_SETUP" "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
                 exit 1
