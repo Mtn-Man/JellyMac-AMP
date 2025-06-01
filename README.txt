@@ -1,7 +1,7 @@
-=================================================================
-                       JellyMac
-        Your Mac's New Personal Media Assistant
-=================================================================
+┌─────────────────────────────────────────────────────────────┐
+│                     J E L L Y M A C                         │
+│          Automated Media Assistant for macOS                │
+└─────────────────────────────────────────────────────────────┘
 
 Transform media chaos into organized bliss with just a copy or a drop.
 
@@ -140,7 +140,7 @@ Eli Sher (Mtn-Man) - elisher@duck.com
 
 VERSION
 -------
-BETA v0.2.0
+BETA v0.2.1
 
 LICENSE
 -------

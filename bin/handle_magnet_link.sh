@@ -194,12 +194,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     # Use the centralized sound notification function
     # play_sound_notification "task_success" "$SCRIPT_NAME"
 fi
-
 # Get the Transmission web port from config or use default
 TRANSMISSION_WEB_PORT="${TRANSMISSION_WEB_PORT:-9091}"
-
 log_user_info "Torrent" "📊 Track progress at: http://localhost:${TRANSMISSION_WEB_PORT}/transmission/web/"
-
-# Then the existing success message
 log_user_complete "Torrent" "✅ Magnet link processing completed successfully"
 exit 0 # Ensure successful exit if reached here (covers successful add and handled duplicates/warnings)

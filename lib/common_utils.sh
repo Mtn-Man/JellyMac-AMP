@@ -609,16 +609,16 @@ transfer_local_file() {
     local dest_path="$2"
     local log_prefix="${3:-Utils}"
     
-    local source_basename; source_basename=$(basename "$source_path")
+    local dest_basename; dest_basename=$(basename "$dest_path")
     
     log_debug_event "$log_prefix" "Local transfer: '$source_path' -> '$dest_path'"
     
     if mv "$source_path" "$dest_path"; then
-        log_debug_event "$log_prefix" "Local transfer successful: '$source_basename'"
+        log_debug_event "$log_prefix" "Local transfer successful: '$dest_basename'"
         return 0
     else
         local mv_exit_code=$?
-        log_error_event "$log_prefix" "Failed to move '$source_basename' to destination (exit code: $mv_exit_code)"
+        log_error_event "$log_prefix" "Failed to move '$dest_basename' to destination (exit code: $mv_exit_code)"
         return 1
     fi
 }
@@ -767,8 +767,7 @@ rsync_with_network_retry() {
     
     local attempt=1
     local retry_delays=(10 30 60)  # Fixed intervals: 10s, 30s, 60s
-    local source_basename
-    source_basename=$(basename "$source_path")
+    local dest_basename; dest_basename=$(basename "$dest_path")
     
     # Build retry options array instead of string manipulation
     local retry_rsync_args=()
@@ -790,7 +789,7 @@ rsync_with_network_retry() {
     retry_rsync_args+=("--timeout=${RSYNC_TIMEOUT:-300}")
     
     while [[ $attempt -le $max_retries ]]; do
-        log_user_progress "Utils" "📡 Network transfer attempt $attempt/$max_retries: $source_basename"
+        log_user_progress "Utils" "📡 Network transfer attempt $attempt/$max_retries: $dest_basename"
         log_debug_event "Utils" "rsync attempt $attempt/$max_retries: $source_path -> $dest_path"
         
         # DEBUG: Show exactly what rsync will execute
@@ -798,7 +797,7 @@ rsync_with_network_retry() {
         
         # Use array expansion for clean argument passing
         if rsync "${retry_rsync_args[@]}" "$source_path" "$dest_path"; then
-            log_user_progress "Utils" "✅ Network transfer succeeded on attempt $attempt: $source_basename"
+            log_user_progress "Utils" "✅ Network transfer succeeded on attempt $attempt: $dest_basename"
             
             # If transfer succeeded and we need to remove source, do it now
             if [[ "$remove_source_on_success" == "true" ]]; then
@@ -814,7 +813,7 @@ rsync_with_network_retry() {
         fi
         
         local rsync_exit_code=$?
-        log_warn_event "Utils" "Network transfer attempt $attempt failed (exit code: $rsync_exit_code): $source_basename"
+        log_warn_event "Utils" "Network transfer attempt $attempt failed (exit code: $rsync_exit_code): $dest_basename"
         
         if [[ $attempt -lt $max_retries ]]; then
             local delay=${retry_delays[$((attempt-1))]}
@@ -827,7 +826,7 @@ rsync_with_network_retry() {
     done
     
     # All retries failed - show user-friendly message
-    log_error_event "Utils" "❌ Network transfer failed after $max_retries attempts: $source_basename"
+    log_error_event "Utils" "❌ Network transfer failed after $max_retries attempts: $dest_basename"
     log_user_info "Utils" "💡 Transfer failed. Please check your network connection and try again."
     log_user_info "Utils" "   • Verify the network volume is still mounted"
     log_user_info "Utils" "   • Check network connectivity to your media server"

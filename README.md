@@ -1,5 +1,7 @@
-# JellyMac
-## Your Mac's New Personal Media Assistant
+┌─────────────────────────────────────────────────────────────┐
+│                     J E L L Y M A C                         │
+│          Automated Media Assistant for macOS                │
+└─────────────────────────────────────────────────────────────┘
 
 Transform media chaos into organized bliss with just a copy or a drop.
 
@@ -50,19 +52,10 @@ brew install git
 
 ```bash
 git clone https://github.com/Mtn-Man/JellyMac.git JellyMac
-cd JellyMac
-chmod +x jellymac.sh bin/*.sh
+cd JellyMac && chmod +x jellymac.sh bin/*.sh
 ```
 
-### Step 3: Copy the configuration file
-
-```bash
-cd lib
-cp jellymac_config.example.sh jellymac_config.sh
-cd ..
-```
-
-### Step 4: Run JellyMac - that's it!
+### Step 3: Run JellyMac - that's it!
 
 ```bash
 ./jellymac.sh
@@ -71,10 +64,10 @@ cd ..
 ### Interactive Setup Wizard
 
 The interactive setup wizard takes over from here:
-- Guides you through installing any missing dependencies (yt-dlp, transmission-cli, ffmpeg, etc.)
+- Copies a new default config file from the example if you have not already done so
+- Guides you through installing any missing dependencies (yt-dlp, transmission-cli, ffmpeg, flock)
 - Creates all necessary folders with sensible defaults
 - Configures Transmission for magnet link automation
-- Guides you through any optional settings
 
 
 ### What Happens Next?
@@ -137,7 +130,7 @@ Eli Sher (Mtn-Man) - elisher@duck.com
 
 ## VERSION
 
-BETA 0.2.0
+BETA 0.2.1
 
 ## LICENSE
 

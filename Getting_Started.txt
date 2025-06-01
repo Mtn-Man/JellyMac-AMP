@@ -1,7 +1,7 @@
-=================================================================
-                  JellyMac
-         The macOS Automated Media Pipeline
-=================================================================
+┌─────────────────────────────────────────────────────────────┐
+│                     J E L L Y M A C                         │
+│          Automated Media Assistant for macOS                │
+└─────────────────────────────────────────────────────────────┘
 
 Welcome to JellyMac! 👋
 
@@ -87,7 +87,7 @@ SECURITY NOTE:
      - Always review scripts before running them, or use
        an AI tool like ChatGPT to help check them.
      - This project uses third-party tools:
-       `flock`, `yt-dlp`, `transmission-cli`.
+       flock, yt-dlp, transmission-cli, ffmpeg
      - Do NOT run this script as root (sudo is not
        needed or recommended).
      - Protect your API keys; never share them.
@@ -143,9 +143,8 @@ INSTALLATION
 
          git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac
 
-         cd JellyMac
+         cd JellyMac && chmod +x jellymac.sh bin/*.sh
 
-         chmod +x jellymac.sh bin/*.sh
 
   2. Configure your paths:
 

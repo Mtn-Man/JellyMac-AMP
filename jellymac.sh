@@ -12,7 +12,7 @@
 # - Can fully automate the media acquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: v0.2.0
+# Version: v0.2.1
 # Last Updated: 2025-05-26
 # License: MIT Open Source
 
@@ -48,16 +48,57 @@ STATE_DIR="${SCRIPT_DIR}/.state" # For lock files, temporary scan files etc.
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/logging_utils.sh"
 
-# 2. Configuration (defines LOG_LEVEL, paths, features)
-# Replace 'jellymac_config.example.sh' with your actual new config filename if different
-CONFIG_FILE_NAME="jellymac_config.sh" # Or "jellymac_config.sh" if you didn't rename it
-if [[ -f "${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}" ]]; then
+# 2. Configuration Setup - Handle missing config file
+CONFIG_FILE_NAME="jellymac_config.sh"
+CONFIG_PATH="${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}"
+EXAMPLE_PATH="${SCRIPT_DIR}/lib/jellymac_config.example.sh"
+
+# Auto-setup configuration if needed
+if [[ ! -f "$CONFIG_PATH" ]]; then
+    if [[ -f "$EXAMPLE_PATH" ]]; then
+        log_user_info "JELLYMAC_SETUP" "No configuration found."
+        log_user_info "JELLYMAC_SETUP" ""
+        log_user_info "JELLYMAC_SETUP" "🚀 First time setup - Would you like to create a config file with default settings?"
+        log_user_info "JELLYMAC_SETUP" "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
+        log_user_info "JELLYMAC_SETUP" "   You can customize paths later by editing lib/jellymac_config.sh"
+        log_user_info "JELLYMAC_SETUP" ""
+        
+        read -r -p "Create default config? (Y/n): " response
+        
+        case "$(echo "$response" | tr '[:upper:]' '[:lower:]')" in
+            ""|y|yes)
+                if cp "$EXAMPLE_PATH" "$CONFIG_PATH"; then
+                    log_user_info "JELLYMAC_SETUP" "✅ Created jellymac_config.sh with default settings."
+                    log_user_info "JELLYMAC_SETUP" "   Edit lib/jellymac_config.sh to customize paths for your setup."
+                    log_user_info "JELLYMAC_SETUP" ""
+                else
+                    log_error_event "JELLYMAC_SETUP" "❌ Failed to create config file. Check permissions."
+                    exit 1
+                fi
+                ;;
+            *)
+                log_user_info "JELLYMAC_SETUP" "Setup cancelled. Please create config manually:"
+                log_user_info "JELLYMAC_SETUP" "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
+                exit 1
+                ;;
+        esac
+    else
+        log_error_event "JELLYMAC_SETUP" "CRITICAL: Neither config file nor example found!"
+        log_error_event "JELLYMAC_SETUP" "Expected files:"
+        log_error_event "JELLYMAC_SETUP" "  - ${CONFIG_PATH}"
+        log_error_event "JELLYMAC_SETUP" "  - ${EXAMPLE_PATH}"
+        log_error_event "JELLYMAC_SETUP" "Please ensure JellyMac is properly installed."
+        exit 1
+    fi
+fi
+
+# Now source the config (either existing or newly created)
+if [[ -f "$CONFIG_PATH" ]]; then
     # shellcheck source=lib/jellymac_config.sh
     # shellcheck disable=SC1091
-    source "${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}"
+    source "$CONFIG_PATH"
 else
-    # Use primitive echo for this critical early error
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - CRITICAL WATCHER: Config file '${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}' not found. Exiting." >&2
+    log_error_event "JELLYMAC_SETUP" "CRITICAL: Config file still missing after setup attempt."
     exit 1
 fi
 
@@ -226,6 +267,7 @@ _log_to_current_file() {
 }
 
 # Define local log function for jellymac.sh using the modern emoji-based system
+# shellcheck disable=SC2317
 log_debug() { log_debug_event "JellyMac" "$1"; }
 
 
@@ -258,7 +300,7 @@ _release_lock() {
     if [[ -n "$LOCK_FILE" ]]; then 
         exec 201>&- # Close file descriptor
         # rm -f "$LOCK_FILE" # Optional: remove lock file, flock releases advisory lock anyway
-        log_user_info "JellyMac" "Instance lock released."
+        log_debug_event "JellyMac" "Instance lock released."
     fi
 }
 
@@ -307,14 +349,14 @@ graceful_shutdown_and_cleanup() {
     # shellcheck disable=SC2317
     echo 
     # shellcheck disable=SC2317
-    log_user_shutdown "JellyMac" "👋 Exiting JellyMac..." 
+    log_user_shutdown "JellyMac" "Exiting JellyMac..." 
     #shellcheck disable=SC2317
     if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" > /dev/null; then
         log_user_info "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
         kill "$CAFFEINATE_PROCESS_ID" 2>/dev/null || log_warn_event "JellyMac" "Caffeinate PID $CAFFEINATE_PROCESS_ID not found or already exited."
     fi
     #shellcheck disable=SC2317
-    log_user_info "JellyMac" "Cleaning up any active child processes..."
+    log_debug_event "JellyMac" "Cleaning up any active child processes..."
     #shellcheck disable=SC2317
     local old_ifs="$IFS" 
     #shellcheck disable=SC2317
@@ -367,7 +409,7 @@ graceful_shutdown_and_cleanup() {
     # shellcheck disable=SC2317
     printf "\033]0;%s\007" "${SHELL##*/}" 
     # shellcheck disable=SC2317
-    log_user_info "JellyMac" "JellyMac shutdown complete." 
+    log_user_shutdown "JellyMac" "JellyMac shutdown complete. See ya next time! 👋" 
     # shellcheck disable=SC2317
     exit 0 
 }
@@ -420,7 +462,7 @@ manage_active_processors() {
             else
                  log_debug_event "JellyMac" "manage_active_processors: wait for PID $pid failed or already reaped. Assuming finished."
             fi
-            log_user_info "JellyMac" "✅ Processor PID $pid ($script_basename for '${item_identifier:0:70}...') completed. Exit status: $exit_status."
+            log_debug_event "JellyMac" "✅ Processor PID $pid ($script_basename for '${item_identifier:0:70}...') completed. Exit status: $exit_status."
             
         fi
     done
@@ -486,7 +528,7 @@ _check_clipboard_youtube() {
         # Bash 3.2 compatible: Use case statement instead of regex where possible
         case "$trimmed_cb" in
             https://www.youtube.com/watch\?v=*|https://youtu.be/*)
-                log_user_info "JellyMac" "▶️ Detected YouTube URL: '${trimmed_cb:0:70}...' Processing in foreground."
+                log_user_info "JellyMac" "▶️ Detected YouTube URL: '${trimmed_cb:0:70}...'"
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
                 
                 if "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb"; then
@@ -525,7 +567,7 @@ _check_clipboard_magnet() {
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
 
                 if "$HANDLE_MAGNET_SCRIPT" "$trimmed_cb"; then
-                    log_user_info "JellyMac" "✅ Magnet link processing appears successful for: ${trimmed_cb:0:70}..."
+                    log_debug_event "JellyMac" "✅ Magnet link processing appears successful for: ${trimmed_cb:0:70}..."
                     send_desktop_notification "JellyMac: Magnet" "Sent to client: ${trimmed_cb:0:60}..." 
                 else
                     # Changed to log_warn to prevent watcher exit on single magnet failure
@@ -543,10 +585,10 @@ _check_clipboard_magnet() {
 # Side Effects: Launches child processes for media processing, updates _ACTIVE_PROCESSOR_INFO_STRING
 process_drop_folder() {
     if [[ -z "$DROP_FOLDER" || ! -d "$DROP_FOLDER" ]]; then
-        log_warn_event "JellyMac" "DROP_FOLDER ('${DROP_FOLDER:-N/A}') not configured or found. Skipping scan."
+        log_warn_event "JellyMac" "Drop Folder ('${DROP_FOLDER:-N/A}') not configured or found. Skipping scan."
         return
     fi
-    log_debug_event "JellyMac" "Scanning DROP_FOLDER: $DROP_FOLDER"
+    log_debug_event "JellyMac" "Scanning Drop Folder: $DROP_FOLDER"
     local find_results_file 
     if [[ ! -d "$STATE_DIR" ]]; then 
         mkdir -p "$STATE_DIR" || { log_error_event "JellyMac" "Failed to create STATE_DIR '$STATE_DIR' for temp scan file. Cannot scan DROP_FOLDER."; exit 1; }
@@ -571,7 +613,7 @@ process_drop_folder() {
             log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) already processing. Skipping."; continue
         fi
 
-        log_user_info "JellyMac" "Checking stability for item in DROP_FOLDER: '$item_basename'"
+        log_user_info "JellyMac" "Checking stability for an item in your Drop Folder: '$item_basename'"
         if ! wait_for_file_stability "$item_path" "${STABLE_CHECKS_DROP_FOLDER:-3}" "${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}"; then
             log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) not stable. Will re-check next cycle."; continue
         fi
@@ -633,8 +675,8 @@ show_startup_banner() {
     
     echo
     echo "┌─────────────────────────────────────────────────────────────┐"
-    echo "│                      J E L L Y M A C                        │"
-    echo "│           Automated Media Assistant for macOS               │"
+    echo "│                     J E L L Y M A C                         │"
+    echo "│          Automated Media Assistant for macOS                │"
     echo "└─────────────────────────────────────────────────────────────┘"
     echo
 }
@@ -660,11 +702,12 @@ _acquire_lock  # Ensure only one instance of JellyMac runs at a time
 show_startup_banner  # Call the startup banner function if enabled
 
 log_user_info "JellyMac" "🚀 JellyMac Starting..."
-log_user_info "JellyMac" "Version: v0.2.0 ($(date '+%Y-%m-%d %H:%M:%S'))"
-log_user_info "JellyMac" "   Project Root: $JELLYMAC_PROJECT_ROOT"
+log_user_info "JellyMac" "Version: v0.2.1 (2025-05-31)"
+log_user_info "JellyMac" "JellyMac location: $JELLYMAC_PROJECT_ROOT"
 log_debug_event "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
-    log_user_info "JellyMac" "   Log File: $CURRENT_LOG_FILE_PATH (Retention: ${LOG_RETENTION_DAYS:-7} days)"
+    log_debug_event "JellyMac" "   Log File: $CURRENT_LOG_FILE_PATH"
+    log_debug_event "JellyMac" "   (Retention: ${LOG_RETENTION_DAYS:-7} days)"
 else 
     log_user_info "JellyMac" "   File Logging: Disabled or not configured. Logging to console only."
 fi
@@ -700,7 +743,7 @@ for pth_to_check in "${local_operational_paths_to_check[@]}"; do
 done
 log_user_info "JellyMac" "✅ Directory configuration verification complete."
 
-log_user_info "JellyMac" "Verifying program files are executable..."
+log_debug_event "JellyMac" "Verifying program files are executable..."
 for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PROCESS_MEDIA_ITEM_SCRIPT"; do
     if [[ ! -x "$helper_script_path" ]]; then
         log_error_event "JellyMac" "CRITICAL: Essential program file '$helper_script_path' is not found or not executable. Exiting."
@@ -723,7 +766,7 @@ fi
 
 if [[ -n "$HISTORY_FILE" ]]; then
     if [[ ! -f "$HISTORY_FILE" ]]; then log_user_info "JellyMac" "📝 History file '$HISTORY_FILE' will be created on first use.";
-    else log_user_info "JellyMac" "📝 Using history file: $HISTORY_FILE"; fi
+    else log_debug_event "JellyMac" "📝 Using history file: $HISTORY_FILE"; fi
 else log_warn_event "JellyMac" "HISTORY_FILE not configured. No history will be recorded."; fi
 
 # --- Store command paths as needed for runtime ---
@@ -740,26 +783,35 @@ if [[ "$(uname)" == "Darwin" ]]; then
     CAFFEINATE_CMD_PATH="caffeinate"
 fi
 
-# Directory checks are already done by validate_config_filepaths() in doctor_utils.sh
-# We can remove redundant directory checks here
+# If we get here, directory checks are already done by validate_config_filepaths() in doctor_utils.sh
 
 log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
 
-log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.0) ---"
-log_user_info "JellyMac" "  Monitoring DROP_FOLDER: ${DROP_FOLDER:-N/A}"
-log_user_info "JellyMac" "  Max Concurrent Media Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
-log_user_info "JellyMac" "  Desktop Notifications (macOS): ${ENABLE_DESKTOP_NOTIFICATIONS:-false}"
-log_user_info "JellyMac" "  Sound Notifications (macOS): ${SOUND_NOTIFICATION:-false}"
-log_user_info "JellyMac" "    -> Input Detected Sound: ${SOUND_INPUT_DETECTED_FILE:-N/A}"
-log_user_info "JellyMac" "    -> Task Success Sound: ${SOUND_TASK_SUCCESS_FILE:-N/A}"
-log_user_info "JellyMac" "  YouTube Clipboard: ${ENABLE_CLIPBOARD_YOUTUBE:-false} (Local: ${LOCAL_DIR_YOUTUBE:-N/A}, Dest: ${DEST_DIR_YOUTUBE:-N/A})"
-log_user_info "JellyMac" "  Magnet Clipboard: ${ENABLE_CLIPBOARD_MAGNET:-false} (Torrent CLI: ${TORRENT_CLIENT_CLI_PATH:-N/A})"
-log_user_info "JellyMac" "  Movie Dest: ${DEST_DIR_MOVIES:-N/A}, Show Dest: ${DEST_DIR_SHOWS:-N/A}"
-log_user_info "JellyMac" "  Error/Quarantine Dir: ${ERROR_DIR:-N/A}"
-log_user_info "JellyMac" "  Main Loop Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s"
-log_user_info "JellyMac" "-------------------------------------------------------"
+log_user_info "JellyMac" ""
+log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.1) ---"
+log_user_info "JellyMac" "⏱️  Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
+log_user_info "JellyMac" ""
+log_user_info "JellyMac" "🎬 Media Destinations:"
+log_user_info "JellyMac" "   Movies  → ${DEST_DIR_MOVIES:-N/A}"
+log_user_info "JellyMac" "   Shows   → ${DEST_DIR_SHOWS:-N/A}"
+log_user_info "JellyMac" "   YouTube → ${DEST_DIR_YOUTUBE:-N/A}"
+log_user_info "JellyMac" ""
+log_user_info "JellyMac" "📂 Drop Folder: ${DROP_FOLDER:-N/A}"
+log_user_info "JellyMac" "📋 Clipboard: YouTube=${ENABLE_CLIPBOARD_YOUTUBE:-false} | Magnet=${ENABLE_CLIPBOARD_MAGNET:-false}"
 
-log_user_info "JellyMac" "🔍 Checking the DROP_FOLDER for movies or shows..."
+
+# Jellyfin status
+if [[ -n "${JELLYFIN_SERVER:-}" && -n "${JELLYFIN_API_KEY:-}" ]]; then
+    log_user_info "JellyMac" "🪼 Jellyfin: ${JELLYFIN_SERVER}"
+    log_user_info "JellyMac" "   Auto-Syncing → Movies:${ENABLE_JELLYFIN_SCAN_MOVIES:-false} Shows:${ENABLE_JELLYFIN_SCAN_SHOWS:-false} YouTube:${ENABLE_JELLYFIN_SCAN_YOUTUBE:-false}"
+else
+    log_user_info "JellyMac" "🪼 Jellyfin: Auto-Sync not configured"
+fi
+
+log_user_info "JellyMac" "🔔 Notifications:${ENABLE_DESKTOP_NOTIFICATIONS:-false} | Sounds:${SOUND_NOTIFICATION:-false}"
+log_user_info "JellyMac" "------------------------------------------------"
+log_user_info "JellyMac" ""
+log_user_info "JellyMac" "🔍 Checking the Drop Folder for movies or shows..."
 process_drop_folder
 if [[ -n "$PBPASTE_CMD" ]]; then
     log_user_info "JellyMac" "📋 Checking the clipboard for links..."; 
@@ -767,7 +819,8 @@ if [[ -n "$PBPASTE_CMD" ]]; then
     _check_clipboard_magnet
 else log_user_info "JellyMac" "📋 Skipping initial clipboard checks ('pbpaste' not available or clipboard features disabled)."; fi
 
-log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds... (press control+c any time to exit)"
+log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds..."
+log_user_status "JellyMac" "(Press Ctrl+C to exit any time)"
 while true; do
     manage_active_processors    
     if [[ -n "$PBPASTE_CMD" ]]; then 

@@ -298,7 +298,7 @@ _processor_move_media_and_associated_files() {
         fi
         
         temp_size=$(echo "$sorted_stat_line" | awk '{print $1}')
-        temp_path=$(echo "$sorted_stat_line" | awk '{$1=""; print $0}' | sed 's/^[[:space:]]*//') 
+        temp_path=$(echo "$sorted_stat_line" | sed -E 's/^[0-9]+[[:space:]]+//')
 
         if ! [[ "$temp_size" =~ ^[0-9]+$ ]] || [[ -z "$temp_path" ]] || [[ ! -f "$temp_path" ]]; then
             log_warn_event "Processing" "Could not reliably parse size/path for largest file from: '$sorted_stat_line'. Parsed size: '$temp_size', path: '$temp_path'."
@@ -361,7 +361,7 @@ _processor_move_media_and_associated_files() {
          return 1
     fi
 
-    log_user_progress "Processing" "📁 Moving: $main_media_source_basename"
+    log_user_progress "Processing" "📁 Moving: $(basename "$final_main_media_dest_path")"
     log_debug_event "Processing" "Moving main media file (using smart transfer):"
     log_debug_event "Processing" "  FROM: '$main_media_file_source_path'"
     log_debug_event "Processing" "  TO:   '$final_main_media_dest_path'"
@@ -625,5 +625,7 @@ fi
 _cleanup_process_media_item_temp_files 
 
 log_debug_event "Processing" "--- Processor Finished for Item: '$original_item_basename_for_log' with Reported Exit Code: $PROCESSOR_EXIT_CODE ---"
+log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds..."
+log_user_status "JellyMac" "(Press Ctrl+C to exit any time)"
 exit "$PROCESSOR_EXIT_CODE"
 
