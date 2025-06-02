@@ -12,7 +12,8 @@
 #==============================================================================
 # Function: is_valid_media_year
 # Description: Validates if a year is within reasonable range for media content
-# Parameters: $1: Year to validate (4-digit string)
+# Checks if the provided year is a 4-digit number within the valid range for media content (1920-2029).
+# Parameters: $1: year - Year to validate (4-digit string)
 # Returns: 0 if valid, 1 if invalid
 #==============================================================================
 is_valid_media_year() {
@@ -31,12 +32,15 @@ is_valid_media_year() {
     fi
 }
 
-# Function to sanitize a string for use as a valid filename.
+#==============================================================================
+# Function: sanitize_filename
+# Description: Sanitizes a string for use as a valid filename
 # Replaces common problematic characters with underscores or removes them.
-# Arguments:
-#   $1: String to sanitize
-#   $2: (Optional) Default string if $1 is empty after sanitization
-# Returns: Sanitized string via echo
+# Handles specific characters that cause issues in filenames across different operating systems.
+# Parameters: $1: input_string - String to sanitize, $2: default_string - (Optional) Default string if input is empty after sanitization
+# Returns: Sanitized string suitable for use as filename
+# Dependencies: None
+#==============================================================================
 sanitize_filename() {
     local input_string="$1"
     local default_string="${2:-sanitized_name}"
@@ -78,11 +82,14 @@ sanitize_filename() {
     echo "$sanitized_string"
 }
 
-# Function to determine media category (Movies/Shows) from item name.
-# Defaults to "Movies" if not identified as a "Show".
-# Arguments:
-#   $1: item_name (basename of the torrent download or file)
+#==============================================================================
+# Function: determine_media_category
+# Description: Determines media category (Movies/Shows) from item name
+# Defaults to "Movies" if not identified as a "Show". Uses regex patterns to detect TV show indicators like SxxExx, Season xx, Episode xx formats.
+# Parameters: $1: item_name - The basename of the torrent download or file
 # Returns: "Movies" or "Shows" via echo
+# Dependencies: None
+#==============================================================================
 determine_media_category() {
     local item_name_to_check="$1"
     local determined_category="Movies" # Default to Movies
@@ -99,10 +106,15 @@ determine_media_category() {
 }
 
 
-# Function to extract and sanitize show information.
-# Arguments:
-#   $1: Filename or item name
-# Returns: SanitizedShowTitle###Year###sXXeYY (Year can be empty or "NOYEAR")
+#==============================================================================
+# Function: extract_and_sanitize_show_info
+# Description: Extracts and sanitizes TV show title, year, and episode info from filename
+# Processes TV show filenames to extract clean titles, years, and season/episode information. Handles various naming conventions and removes quality tags and release groups while preserving core show information.
+# Example: "Show.Name.S01E05.720p.WEB-DL.mkv" -> "Show Name###2024###s01e05"
+# Parameters: $1: original_name - The TV show filename to process
+# Returns: Formatted string: "ShowTitle###Year###sXXeYY" (Year can be "NOYEAR")
+# Dependencies: sanitize_filename(), is_valid_media_year(), log_debug_event(), MEDIA_TAG_BLACKLIST
+#==============================================================================
 extract_and_sanitize_show_info() {
     local original_name="$1"
     local raw_title_part=""
@@ -226,30 +238,43 @@ extract_and_sanitize_show_info() {
     echo "$formatted_string"
 }
 
-
-# Function to extract and sanitize movie information.
-# Improved movie info extraction for filenames like:
-#   A.Minecraft.Movie.2025.1080p.WEB-DL.DDP5.1.x265-NeoNoir.mkv -> A Minecraft Movie (2025)
-#   Thunderbolts (2025) 1080p SDrip x264 AC3 Re-Encoded [700MB] - OneHack.mp4 -> Thunderbolts (2025)
+#==============================================================================
+# Function: extract_and_sanitize_movie_info
+# Description: Extracts and sanitizes movie title and year from filename
+# Processes movie filenames to extract clean titles and years, handling various naming conventions and release formats. Removes quality tags, release groups, and metadata while preserving core title information. Prioritizes parentheses year format but falls back to other year patterns.
+# Example: "A.Minecraft.Movie.2025.1080p.WEB-DL.x265-NeoNoir.mkv" -> "A Minecraft Movie (2025)"
+# Parameters: $1: filename - The movie filename to process
+# Returns: Sanitized movie title with year in parentheses (if valid year found) Format: "Movie Title (YYYY)" or "Movie Title" (if no valid year)
+# Dependencies: sanitize_filename(), is_valid_media_year(), log_debug_event(), MEDIA_TAG_BLACKLIST
+#==============================================================================
 extract_and_sanitize_movie_info() {
     local filename="$1"
     local name_no_ext="${filename%.*}"
     local name_spaced="${name_no_ext//[._]/ }"
     
+    log_debug_event "Media" "extract_and_sanitize_movie_info: Starting with filename='$filename'"
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After extension removal='$name_no_ext'"
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After dot/underscore replacement='$name_spaced'"
+    
     # Remove release group at the end (e.g., "- OneHack", "- NeoNoir")
     name_spaced=$(echo "$name_spaced" | sed -E 's/ - [a-zA-Z0-9]+$//g')
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After release group removal='$name_spaced'"
     
     # Remove bracketed content like [700MB], [RARBG], etc.
     name_spaced=$(echo "$name_spaced" | sed -E 's/\[[^\]]*\]//g')
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After bracketed content removal='$name_spaced'"
     
     # Clean multiple spaces that might result from removals
     name_spaced=$(echo "$name_spaced" | tr -s ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After space cleanup='$name_spaced'"
     
     local tag_regex="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\\.1|AAC|AC3|x265|x264|HEVC|H\\.264|H\\.265|REMUX|NeoNoir}"
+    log_debug_event "Media" "extract_and_sanitize_movie_info: Using tag regex='$tag_regex'"
     
     # Remove quality/encoding tags
     local cleaned_name
     cleaned_name=$(echo "$name_spaced" | sed -E "s/ ($tag_regex)( |$)/ /gI" | tr -s ' ')
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After tag removal='$cleaned_name'"
     
     # STEP 1: Check if year is already in parentheses (like "Thunderbolts (2025)")
     if [[ $cleaned_name =~ ^(.*[[:space:]])\(([12][0-9]{3})\)(.*)$ ]]; then
@@ -257,19 +282,32 @@ extract_and_sanitize_movie_info() {
         local year="${BASH_REMATCH[2]}"
         local remaining="${BASH_REMATCH[3]}"
         
+        log_debug_event "Media" "extract_and_sanitize_movie_info: Found parentheses year format - title='$title_part', year='$year', remaining='$remaining'"
+        
         # If there's minimal content after the year, accept this format
         if [[ ${#remaining} -lt 10 ]]; then
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Minimal content after year (${#remaining} chars), accepting format"
+            
             # Clean title and keep the year
             title_part=$(echo "$title_part" | sed -E 's/[[:space:]]*$//')
             title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
             title_part=$(sanitize_filename "$title_part" "Unknown Movie")
             
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Processed title='$title_part'"
+            
             # Validate year before returning
             if is_valid_media_year "$year"; then
+                log_debug_event "Media" "extract_and_sanitize_movie_info: Year '$year' is valid, returning '$title_part ($year)'"
                 echo "$title_part ($year)"
                 return 0
+            else
+                log_debug_event "Media" "extract_and_sanitize_movie_info: Year '$year' is invalid, continuing to fallback logic"
             fi
+        else
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Too much content after year (${#remaining} chars), continuing to fallback logic"
         fi
+    else
+        log_debug_event "Media" "extract_and_sanitize_movie_info: No parentheses year format found, continuing to fallback logic"
     fi
     
     # STEP 3: Fallback to existing logic for other year formats
@@ -281,31 +319,43 @@ extract_and_sanitize_movie_info() {
         local title_before_year="${cleaned_name%"$year"*}"
         local title_after_year="${cleaned_name#*"$year"}"
         
+        log_debug_event "Media" "extract_and_sanitize_movie_info: Found year '$year' in fallback logic"
+        log_debug_event "Media" "extract_and_sanitize_movie_info: Title before year='$title_before_year'"
+        log_debug_event "Media" "extract_and_sanitize_movie_info: Title after year='$title_after_year' (${#title_after_year} chars)"
+        
         if [[ ${#title_after_year} -gt 15 ]]; then
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Too much content after year, treating as no year"
             title_part="$cleaned_name"
             year="" 
         else
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Using title before year"
             title_part="$title_before_year"
         fi
     else
+        log_debug_event "Media" "extract_and_sanitize_movie_info: No year found in fallback logic"
         title_part="$cleaned_name"
     fi
+    
+    log_debug_event "Media" "extract_and_sanitize_movie_info: Pre-processing title_part='$title_part', year='$year'"
     
     # STEP 4: Title case and sanitization
     title_part=$(echo "$title_part" | sed -E 's/^ +| +$//g')
     title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
     title_part=$(sanitize_filename "$title_part" "Unknown Movie")
     
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After sanitization title_part='$title_part'"
+    
     # Final validation and formatting
     if [[ -n "$year" ]]; then
         if is_valid_media_year "$year"; then
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Final output with valid year: '$title_part ($year)'"
             echo "$title_part ($year)"
         else
-            # Year was present but invalid
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Year '$year' is invalid, final output without year: '$title_part'"
             echo "$title_part"
         fi
     else
-        # Year was not present
+        log_debug_event "Media" "extract_and_sanitize_movie_info: No year present, final output: '$title_part'"
         echo "$title_part"
     fi
 }

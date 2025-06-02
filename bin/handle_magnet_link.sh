@@ -6,8 +6,7 @@
 # Utilizes functions from lib/common_utils.sh.
 
 # --- Strict Mode & Globals ---
-set -eo pipefail
-# set -u # Uncomment for stricter undefined variable checks after thorough testing
+set -euo pipefail # Enable strict mode for better error handling
 
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,10 +49,19 @@ trap _cleanup_script_temp_files EXIT SIGINT SIGTERM
 # --- Source Libraries ---
 # Source order matters: logging -> config -> common -> others
 # shellcheck source=../lib/logging_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/logging_utils.sh"
 # shellcheck source=../lib/jellymac_config.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/jellymac_config.sh" # Sources JELLYMAC_PROJECT_ROOT and all other configs
+
+# --- Variable Initialization for set -u compatibility ---
+TRANSMISSION_REMOTE_HOST="${TRANSMISSION_REMOTE_HOST:-}" 
+TRANSMISSION_REMOTE_AUTH="${TRANSMISSION_REMOTE_AUTH:-}"
+TORRENT_CLIENT_CLI_PATH="${TORRENT_CLIENT_CLI_PATH:-}"
+
 # shellcheck source=../lib/common_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/common_utils.sh" # For find_executable, record_transfer_to_history, play_sound_notification
 
 # --- Log Level & Prefix Initialization ---
@@ -194,8 +202,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     # Use the centralized sound notification function
     # play_sound_notification "task_success" "$SCRIPT_NAME"
 fi
-# Get the Transmission web port from config or use default
-TRANSMISSION_WEB_PORT="${TRANSMISSION_WEB_PORT:-9091}"
-log_user_info "Torrent" "📊 Track progress at: http://localhost:${TRANSMISSION_WEB_PORT}/transmission/web/"
+# Use the existing TRANSMISSION_REMOTE_HOST config for web interface URL
+log_user_info "Torrent" "📊 Track progress at: http://${TRANSMISSION_REMOTE_HOST}/transmission/web/"
 log_user_complete "Torrent" "✅ Magnet link processing completed successfully"
 exit 0 # Ensure successful exit if reached here (covers successful add and handled duplicates/warnings)

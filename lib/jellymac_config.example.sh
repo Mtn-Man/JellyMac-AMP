@@ -52,7 +52,7 @@ ENABLE_STARTUP_BANNER="true"                                   # Display ASCII a
 SOUND_INPUT_DETECTED_FILE="/System/Library/Sounds/Funk.aiff"   # Sound for new input (links or files detected)
 SOUND_TASK_SUCCESS_FILE="/System/Library/Sounds/Glass.aiff"    # Sound for task success
 SOUND_TASK_ERROR_FILE="/System/Library/Sounds/Basso.aiff"      # Sound for errors
-                               
+
 #==============================================================================
 # LOGGING & HISTORY
 #==============================================================================
@@ -116,9 +116,8 @@ TRANSMISSION_REMOTE_AUTH=""                                         # Leave blan
 #==============================================================================
 # YOUTUBE PROCESSING
 #==============================================================================
-# Local staging area and download settings for YouTube content
 
-LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"     # Temporary download folder for YouTube videos
+LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"     # Temporary staging download folder for YouTube videos
 DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
 COOKIES_ENABLED="false"                                        # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                       # Export from browser if cookies enabled

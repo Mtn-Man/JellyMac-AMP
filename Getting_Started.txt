@@ -39,24 +39,18 @@ FUNCTIONALITY
 JellyMac simplifies managing your media library by:
 
   1. Watching your clipboard for:
-
      - YouTube links (automatically downloads videos)
      - Magnet links (sends them to Transmission)
 
   2. Monitoring a "drop folder" where you can place:
-
      - Movies (loose files or in folders)
      - TV Show Episodes for organization
 
   Once JellyMac detects new media, it automatically:
-
      - Cleans filenames for better server matching
        (especially for Jellyfin and Plex).
-
      - Moves files to your configured library folders for Shows and Movies.
-
      -Sorts the files into the proper structure for Movies and for Shows
-    
      - Can automatically trigger an update to the server so it shows the new content right away
 
 Here's a summary of its capabilities:
@@ -120,27 +114,13 @@ You'll need:
 
   2. Homebrew Package Manager
      - If you don't have it, install from https://brew.sh
-  3. Required Tools (after installing Homebrew):
-     JellyMac needs `flock`, `yt-dlp`, ffmpeg, and
-     `transmission-cli`.
 
-     TIP: On its first run, if JellyMac detects
-     missing dependencies, it will offer to install
-     them for you automatically via Homebrew. You can
-     choose a one-time install for the current session
-     or opt to permanently enable the
-     `AUTO_INSTALL_DEPENDENCIES` setting in the
-     `lib/jellymac_config.sh` file.
-     Alternatively, you can install them manually
-     beforehand with:
 
-         Run: brew install flock yt-dlp ffmpeg transmission-cli
-
-  4. A Media Server (Jellyfin, Plex, Emby, etc.)
+  3. (Optional) A Media Server (Jellyfin, Plex, Emby, etc.)
      - Can be running locally or on another computer/NAS.
      - If using Jellyfin and want auto-scans:
        - You'll need its address (e.g., http://server-ip:8096).
-       - You'll need a Jellyfin API key (see Configuration).
+       - You'll need a Jellyfin API key (see Configuration below).
 
 INSTALLATION
 ------------
@@ -159,10 +139,6 @@ INSTALLATION
 
 
   2. Configure your paths:
-
-         cd lib
-
-         cp jellymac_config.example.sh jellymac_config.sh
 
   IMPORTANT: Edit jellymac_config.sh to set your actual media library paths:
 
@@ -187,7 +163,7 @@ INSTALLATION
          5. Find and edit the file paths to match your setup
          6. Save the file (Cmd+S) and close TextEdit
 
-  3. Configure Jellyfin integration for auto updates (optional):
+  3. Configure Jellyfin integration for auto library syncing (optional):
 
          JELLYFIN_SERVER="http://your-server-ip:8096"
          JELLYFIN_API_KEY="your-jellyfin-api-key"
@@ -279,22 +255,41 @@ Once setup is complete:
   Stopping JellyMac:
        Press Ctrl+C in the Terminal window
 
+PLAYBACK SUGGESTIONS
+--------------------
+
+For local video playback, the default QuickTime Player has limited support
+for modern video codecs (e.g. HEVC/H.265), which will cause playback issues
+with JellyMac's YouTube downloads.
+
+Instead, we recommend using Jellyfin Server to host your media locally,
+then play back in any web browser, and on any computer on your network.
+
+Find out more: https://jellyfin.org
+
+Alternatively, there are many reliable, free video players for macOS,
+including:
+
+  - Infuse: https://firecore.com/infuse
+  - IINA:   https://www.iina.tv/
+  - VLC:    https://www.videolan.org/vlc/
+
+In a pinch, Google Chrome can also play many media formats, if you already have that installed.
 
 ADVANCED: Sonarr/Radarr Integration
-----------------------------------
+-----------------------------------
 
 See `Arr_Suite_Handoff_Guide.txt` in the main JellyMac folder for 
 instructions if you use Sonarr or Radarr.
 
 
 NETWORK SETUP (If your media server is on another computer)
------------------------------------------
+-----------------------------------------------------------
 
 If your media library folders (e.g., Movies, Shows) are on a
 NAS or another computer on the network, create a network share, then ensure it is mounted on your Mac:
 
   1. Mount Your Media Shares:
-
        - In Finder, press Cmd+K (Go > Connect to Server...).
        - Enter the server address, e.g.,
          `smb://server-ip/MediaShareName` or
@@ -304,7 +299,6 @@ NAS or another computer on the network, create a network share, then ensure it i
          (e.g., `/Volumes/MediaShareName/Movies`).
 
   2. Test Your Setup:
-
        - Can you access your media server (Jellyfin, Plex)
          from your Mac's Finder?
        - Can you manually copy a file from your Mac to the
@@ -317,7 +311,6 @@ TROUBLESHOOTING
   1. Common Issues:
 
        - Permission Problems:
-
            JellyMac needs to read from your `DROP_FOLDER`
            and write to your destination directories.
            * Check ownership/permissions: `ls -la [directory]`

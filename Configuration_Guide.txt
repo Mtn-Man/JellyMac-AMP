@@ -13,14 +13,15 @@ To configure JellyMac:
 Navigate to the lib directory within your JellyMac
 folder (e.g., cd ~/JellyMac/lib).
 
-If it doesn't already exist, copy the example
-configuration: cp jellymac_config.example.sh jellymac_config.sh
+When you first run ./jellymac.sh from your main JellyMac folder, 
+it will automatically check for lib/jellymac_config.sh. If the configuration file is not found, 
+JellyMac will offer to create a default one for you by copying lib/jellymac_config.example.sh. 
 
-Open jellymac_config.sh in a text editor (like nano
-or TextEdit) and modify the settings as described below.
+You can then edit lib/jellymac_config.sh using a text editor (like nano or TextEdit) 
+to customize the settings as described in this guide.
 
-Save your changes and restart JellyMac  for them to
-take effect.
+When finished, save your changes and restart JellyMac for them
+to take effect.
 
 General Tips for Configuration:
 
@@ -408,12 +409,6 @@ various events (e.g., new media detected, task
 completion, errors).
 Values: "true" (default), "false"
 Note: Only works on macOS. Requires osascript.
-
-ENABLE_STARTUP_BANNER
-Purpose: Show an ASCII art banner in the terminal when
-JellyMac  starts.
-Values: "true" (default), "false" (for a more minimal
-startup).
 
 SOUND_NOTIFICATION
 Purpose: Master switch to enable or disable all sound

@@ -139,6 +139,70 @@ collect_missing_dependencies() {
     done
 }
 
+# Function: enable_auto_install_and_install_deps
+# Description: Updates config to enable AUTO_INSTALL_DEPENDENCIES and installs missing programs
+# Parameters: $@: Array of missing dependency names
+# Returns: 0 if successful, 1 if failed
+enable_auto_install_and_install_deps() {
+    local missing_deps=("$@")
+    local log_prefix="Doctor"
+    
+    log_user_info "$log_prefix" "Enabling automatic program installation..."
+    
+    # Determine the directory of the currently executing script (doctor_utils.sh)
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    local config_file="${script_dir}/jellymac_config.sh"
+    
+    log_user_info "$log_prefix" "Attempting to update config file: '$config_file'"
+
+    if [[ -f "$config_file" && -w "$config_file" ]]; then
+        # Create a backup of the config file first
+        cp "$config_file" "${config_file}.bak"
+        log_user_info "$log_prefix" "Created backup of config file: '${config_file}.bak'"
+        
+        # Use macOS-compatible sed syntax with a more robust pattern
+        local sed_pattern='s/^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"false".*/AUTO_INSTALL_DEPENDENCIES="true"/'
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' "$sed_pattern" "$config_file"
+        else
+            # Linux/other systems
+            sed -i "$sed_pattern" "$config_file"
+        fi
+        
+        # Verify that the change was successful
+        if grep -q '^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"true"' "$config_file"; then
+            log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true in '$config_file'"
+        else
+            log_error_event "$log_prefix" "❌ Failed to verify update of AUTO_INSTALL_DEPENDENCIES to true in '$config_file'."
+            log_user_info "$log_prefix" "The line might not have matched or sed command failed. Original setting may persist."
+            # Attempt to proceed with installation as user intended to enable it.
+        fi
+        
+        echo # For spacing in terminal output
+        
+        # Try installation with new setting
+        AUTO_INSTALL_DEPENDENCIES="true"
+        install_missing_dependencies "${missing_deps[@]}"
+        local install_status=$?
+        
+        if [[ $install_status -eq 0 ]]; then
+            echo
+            echo -e "\033[32m✓\033[0m Successfully installed all programs!"
+            echo "JellyMac will now continue with startup..."
+            echo
+            echo "In the future, any missing programs will be installed automatically."
+            sleep 2
+        fi
+        
+        return $install_status
+    else
+        log_user_info "$log_prefix" "❌ Could not update config file '$config_file'. File not found or not writable."
+        log_user_info "$log_prefix" "Please ensure '$config_file' exists, has write permissions, and then set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
+        return 1
+    fi
+}
+
 # Function: handle_missing_dependencies_interactively
 # Description: Presents user with options for installing missing dependencies
 # Parameters:
@@ -210,59 +274,8 @@ handle_missing_dependencies_interactively() {
             ;;
             
         ""|2|two)  # Enable automatic installation (permanent) - DEFAULT
-            log_user_info "$log_prefix" "Enabling automatic program installation..."
-            
-            # Determine the directory of the currently executing script (doctor_utils.sh)
-            local script_dir
-            script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-            local config_file="${script_dir}/jellymac_config.sh"
-            
-            log_user_info "$log_prefix" "Attempting to update config file: '$config_file'"
-
-            if [[ -f "$config_file" && -w "$config_file" ]]; then
-                # Create a backup of the config file first
-                cp "$config_file" "${config_file}.bak"
-                log_user_info "$log_prefix" "Created backup of config file: '${config_file}.bak'"
-                
-                # Use macOS-compatible sed syntax with a more robust pattern
-                local sed_pattern='s/^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"false".*/AUTO_INSTALL_DEPENDENCIES="true"/'
-                if [[ "$(uname)" == "Darwin" ]]; then
-                    sed -i '' "$sed_pattern" "$config_file"
-                else
-                    # Linux/other systems
-                    sed -i "$sed_pattern" "$config_file"
-                fi
-                
-                # Verify that the change was successful
-                if grep -q '^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"true"' "$config_file"; then
-                    log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true in '$config_file'"
-                else
-                    log_error_event "$log_prefix" "❌ Failed to verify update of AUTO_INSTALL_DEPENDENCIES to true in '$config_file'."
-                    log_user_info "$log_prefix" "The line might not have matched or sed command failed. Original setting may persist."
-                    # Attempt to proceed with installation as user intended to enable it.
-                fi
-                echo # For spacing in terminal output
-                
-                # Try installation with new setting
-                AUTO_INSTALL_DEPENDENCIES="true"
-                install_missing_dependencies "${missing_deps[@]}"
-                local install_status=$?
-                
-                if [[ $install_status -eq 0 ]]; then
-                    echo
-                    echo -e "\033[32m✓\033[0m Successfully installed all programs!"
-                    echo "JellyMac will now continue with startup..."
-                    echo
-                    echo "In the future, any missing programs will be installed automatically."
-                    sleep 2
-                fi
-                
-                return $install_status
-            else
-                log_user_info "$log_prefix" "❌ Could not update config file '$config_file'. File not found or not writable."
-                log_user_info "$log_prefix" "Please ensure '$config_file' exists, has write permissions, and then set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
-                return 1
-            fi
+            enable_auto_install_and_install_deps "${missing_deps[@]}"
+            return $?
             ;;
             
         3|three)  # Skip and continue
@@ -278,7 +291,7 @@ handle_missing_dependencies_interactively() {
             log_user_info "$log_prefix" "Exiting JellyMac setup."
             echo
             echo "To get started, please read the Getting Started guide:"
-            echo -e "  \033[36m$JELLYMAC_PROJECT_ROOT/JellyMac_Getting_Started.txt\033[0m"
+            echo -e "  \033[36m$JELLYMAC_PROJECT_ROOT/Getting_Started.txt\033[0m"
             echo
             echo "This guide will walk you through:"
             echo "  • Setting up all required programs for JellyMac to work properly"
@@ -293,58 +306,8 @@ handle_missing_dependencies_interactively() {
             
         *)  # Invalid selection - default to option 2
             log_user_info "$log_prefix" "Invalid selection. Defaulting to option 2 (recommended)."
-            log_user_info "$log_prefix" "Enabling automatic program installation..."
-            # Fall through to option 2 behavior
-            
-            # Determine the directory of the currently executing script (doctor_utils.sh)
-            local script_dir
-            script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-            local config_file="${script_dir}/jellymac_config.sh"
-            
-            log_user_info "$log_prefix" "Attempting to update config file: '$config_file'"
-
-            if [[ -f "$config_file" && -w "$config_file" ]]; then
-                # Create a backup of the config file first
-                cp "$config_file" "${config_file}.bak"
-                log_user_info "$log_prefix" "Created backup of config file: '${config_file}.bak'"
-                
-                # Use macOS-compatible sed syntax with a more robust pattern
-                local sed_pattern='s/^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"false".*/AUTO_INSTALL_DEPENDENCIES="true"/'
-                if [[ "$(uname)" == "Darwin" ]]; then
-                    sed -i '' "$sed_pattern" "$config_file"
-                else
-                    # Linux/other systems
-                    sed -i "$sed_pattern" "$config_file"
-                fi
-                
-                # Verify that the change was successful
-                if grep -q '^[[:space:]]*AUTO_INSTALL_DEPENDENCIES[[:space:]]*=[[:space:]]*"true"' "$config_file"; then
-                    log_user_info "$log_prefix" "✅ Config updated: AUTO_INSTALL_DEPENDENCIES set to true in '$config_file'"
-                else
-                    log_error_event "$log_prefix" "❌ Failed to verify update of AUTO_INSTALL_DEPENDENCIES to true in '$config_file'."
-                    log_user_info "$log_prefix" "The line might not have matched or sed command failed. Original setting may persist."
-                    # Attempt to proceed with installation as user intended to enable it.
-                fi
-                
-                # Try installation with new setting
-                AUTO_INSTALL_DEPENDENCIES="true"
-                install_missing_dependencies "${missing_deps[@]}"
-                local install_status=$?
-                
-                if [[ $install_status -eq 0 ]]; then
-                    log_user_info "$log_prefix" "✅ Successfully installed all programs!"
-                    log_user_info "$log_prefix" "JellyMac will now continue with startup..."
-                    log_user_info "$log_prefix" ""
-                    log_user_info "$log_prefix" "In the future, any missing programs will be installed automatically."
-                    sleep 2
-                fi
-                
-                return $install_status
-            else
-                log_user_info "$log_prefix" "❌ Could not update config file '$config_file'. File not found or not writable."
-                log_user_info "$log_prefix" "Please ensure '$config_file' exists, has write permissions, and then set AUTO_INSTALL_DEPENDENCIES=\"true\" manually."
-                return 1
-            fi
+            enable_auto_install_and_install_deps "${missing_deps[@]}"
+            return $?
             ;;
     esac
 }
@@ -395,7 +358,6 @@ validate_config_filepaths() {
     # These can be empty or missing, but if specified must be valid
     local optional_dirs=(
         "${DEST_DIR_YOUTUBE:-}"     "Destination folder for YouTube downloads (optional)"
-        "${TEMP_DIR:-}"             "Temporary processing folder (optional)"
     )
     
     # Check each required directory
@@ -769,11 +731,30 @@ perform_system_health_checks() {
     
     local missing_count=${#missing_deps[@]}
     
-    # If we have missing dependencies, handle them interactively
-    if [[ $missing_count -gt 0 ]]; then
-        handle_missing_dependencies_interactively "${missing_deps[@]}"
+   # If we have missing dependencies, handle them based on AUTO_INSTALL_DEPENDENCIES setting
+if [[ $missing_count -gt 0 ]]; then
+    if [[ "${AUTO_INSTALL_DEPENDENCIES:-false}" == "true" ]]; then
+        log_debug_event "$log_prefix" "AUTO_INSTALL_DEPENDENCIES is enabled, skipping interactive prompts"
+        log_user_info "$log_prefix" "🔧 Auto-installing missing programs (AUTO_INSTALL_DEPENDENCIES=true)..."
+        for dep in "${missing_deps[@]}"; do
+            log_user_info "$log_prefix" "  • $dep"
+        done
+        log_user_info "$log_prefix" "🔧 Auto-installing missing programs (AUTO_INSTALL_DEPENDENCIES=true)..."
+        install_missing_dependencies "${missing_deps[@]}"
+        local install_status=$?
         
-        # Re-check dependencies after interactive handling (using Bash 3.2 compatible approach)
+        if [[ $install_status -eq 0 ]]; then
+            log_user_info "$log_prefix" "✅ Successfully auto-installed all missing programs!"
+        else
+            log_warn_event "$log_prefix" "⚠️ Some programs failed to auto-install. Continuing with interactive setup..."
+            handle_missing_dependencies_interactively "${missing_deps[@]}"
+        fi
+    else
+        # Use interactive prompts when auto-install is disabled
+        handle_missing_dependencies_interactively "${missing_deps[@]}"
+    fi
+        
+        # Re-check dependencies after installation attempt (interactive or automatic) (using Bash 3.2 compatible approach)
         missing_deps=()
         local IFS=$'\n'
         while read -r dep; do
