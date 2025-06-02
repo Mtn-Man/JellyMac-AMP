@@ -520,7 +520,7 @@ wait_for_file_stability() {
         log_debug_event "Utils" "↳ '$item_basename': Check $((i + 1))/$max_stable_checks_for_item, Display Size: ${current_size_display}, ByteSize:Mtime: [${current_combined_stat}] (Stable count: $stable_count/$max_stable_checks_for_item)"
 
         if [[ "$stable_count" -ge "$max_stable_checks_for_item" ]]; then
-            log_user_progress "Utils" "✅ '$item_basename': Stable (${current_size_display})"
+            log_user_success "Utils" "✅ '$item_basename': File Size stable: Download appears to be complete (${current_size_display})"
             return 0
         fi
 
@@ -532,7 +532,7 @@ wait_for_file_stability() {
         fi
     done
 
-    log_warn_event "Utils" "⚠️ '$item_basename': Not stable after $max_stable_checks_for_item checks (Last ByteSize:Mtime: [${last_combined_stat}])."
+    log_debug_event "Utils" "⚠️ '$item_basename': Not stable after $max_stable_checks_for_item checks (Last ByteSize:Mtime: [${last_combined_stat}])."
     return 1
 }
 

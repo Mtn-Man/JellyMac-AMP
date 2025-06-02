@@ -11,13 +11,15 @@ library easier on macOS. Whether you're new to media automation
 or a seasoned bash developer, we think this project has
 something to offer for anyone with a media server and a Mac.
 
-JellyMac aims to be a lightweight, macOS-centric automation
-suite for media management, particularly for users of Jellyfin.
+JellyMac is a lightweight, macOS-centric automation suite 
+for media management, particularly for users of Jellyfin media server.
 It leverages Bash scripting and common command-line tools to
 monitor clipboard events (YouTube links, magnet links) and a
 designated "drop folder" for new media. It then processes
 these items — downloading, renaming, organizing, transferring (if needed)
 — and optionally integrates with Jellyfin for automatic library updates.
+This enables full end-to-end automation for media additions to your library
+with just 2 clicks once JellyMac is running.
 
 COMPATIBILITY
 ----------------
@@ -49,9 +51,13 @@ JellyMac simplifies managing your media library by:
   Once JellyMac detects new media, it automatically:
 
      - Cleans filenames for better server matching
-       (especially for Jellyfin).
-     - Moves files to your configured library paths.
-     - Can tell your Jellyfin server to update its library.
+       (especially for Jellyfin and Plex).
+
+     - Moves files to your configured library folders for Shows and Movies.
+
+     -Sorts the files into the proper structure for Movies and for Shows
+    
+     - Can automatically trigger an update to the server so it shows the new content right away
 
 Here's a summary of its capabilities:
 
@@ -84,17 +90,22 @@ BEFORE YOU START
 
 SECURITY NOTE:
 
-     - Always review scripts before running them, or use
-       an AI tool like ChatGPT to help check them.
-     - This project uses third-party tools:
+     - Always review scripts before running them, or use an AI tool like ChatGPT to help check them.
+       They are in plain text and are commented to help explain what they do.
+
+     - This project uses third-party tools and their required dependencies:
        flock, yt-dlp, transmission-cli, ffmpeg
-     - Do NOT run this script as root (sudo is not
-       needed or recommended).
-     - Protect your API keys; never share them.
+
+     - Do NOT run this script as root (sudo is not  needed or recommended).
+      
+     - Protect your API keys; never share them under any circumstances.
+
      - This is BETA software that manages files.
        ALWAYS KEEP BACKUPS OF IMPORTANT FILES AND MEDIA!
-     - While tested, there's a small risk of data
-       loss – be warned.
+
+     - This software has no external networking capabilities other than what you set up for it
+       JellyMac will not now or ever "phone-home" or collect your data in any way.
+       It will remain free, transparent, and open to all
 
 Setup Instructions
 ------------------
@@ -102,15 +113,15 @@ Setup Instructions
 You'll need:
 
   1. A Mac running macOS
-     - Tested on macOS Sequoia, Sonoma, Ventura, and Monterey.
-     - Should work on older versions, but dependency availability
-       may vary (testing in progress).
+     - Tested and working well on macOS Sequoia, Sonoma, and Ventura.
+     - Should work on older versions, but dependencies will take longer to install and may
+       stress your system as they are compliled for your version.
      - Bash 3.2 (pre-installed on modern Macs).
 
   2. Homebrew Package Manager
      - If you don't have it, install from https://brew.sh
   3. Required Tools (after installing Homebrew):
-     JellyMac needs `flock`, `yt-dlp`, and
+     JellyMac needs `flock`, `yt-dlp`, ffmpeg, and
      `transmission-cli`.
 
      TIP: On its first run, if JellyMac detects
@@ -123,7 +134,7 @@ You'll need:
      Alternatively, you can install them manually
      beforehand with:
 
-         Run: brew install flock yt-dlp transmission-cli
+         Run: brew install flock yt-dlp ffmpeg transmission-cli
 
   4. A Media Server (Jellyfin, Plex, Emby, etc.)
      - Can be running locally or on another computer/NAS.
@@ -135,13 +146,14 @@ INSTALLATION
 ------------
   
   1. Get Homebrew and JellyMac:
+
        Open Terminal and run each command one at a time (follow the prompts to install Homebrew first):
 
          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         
          brew install git
 
-         git clone https://github.com/Mtn-Man/JellyMac-AMP.git JellyMac
+         git clone https://github.com/Mtn-Man/JellyMac.git JellyMac
 
          cd JellyMac && chmod +x jellymac.sh bin/*.sh
 
@@ -343,12 +355,11 @@ ROADMAP AND FUTURE PLANS
 
 JellyMac is in active development.
 Planned features include:
-  - Music file support.
-  - Movie/TV Show collection/pack handling.
+  - Movie/TV Show season/collection/pack handling.
   - YouTube playlist support.
   - Enhanced metadata extraction.
   - Improved file recognition and filtering.
-  - YouTube to .mp3 conversion options.
+  - GUI version
 
 Current development is focused on polishing existing
 functionality.
