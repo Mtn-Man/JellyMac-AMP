@@ -90,7 +90,7 @@ trigger_jellyfin_library_scan() {
             ;;
         *)
             if [[ "$http_status_code" =~ ^2[0-9]{2}$ ]]; then # Other 2xx success codes
-                 log_user_complete "Jellyfin" "📺 Library scan complete"
+                 log_user_info "Jellyfin" "Jellyfin Library scan triggered successfully"
                  return 0
             elif [[ "$http_status_code" =~ ^[45][0-9]{2}$ ]]; then # Other 4xx or 5xx error codes
                  log_error_event "Jellyfin" "❌ Failed to trigger library scan for '$item_category_for_log'. Server responded with unexpected error HTTP $http_status_code."

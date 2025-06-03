@@ -59,6 +59,7 @@ source "${LIB_DIR}/jellymac_config.sh" # Sources JELLYMAC_PROJECT_ROOT and all o
 TRANSMISSION_REMOTE_HOST="${TRANSMISSION_REMOTE_HOST:-}" 
 TRANSMISSION_REMOTE_AUTH="${TRANSMISSION_REMOTE_AUTH:-}"
 TORRENT_CLIENT_CLI_PATH="${TORRENT_CLIENT_CLI_PATH:-}"
+# STATE_DIR is expected to be set by jellymac_config.sh
 
 # shellcheck source=../lib/common_utils.sh
 # shellcheck disable=SC1091
@@ -99,13 +100,18 @@ fi
 log_debug_event "Torrent" "Received Magnet link: ${MAGNET_URL:0:70}..."
 
 # --- Pre-flight Checks ---
-if [[ -z "$TRANSMISSION_REMOTE_HOST" ]]; then # From combined.conf.sh
+if [[ -z "$TRANSMISSION_REMOTE_HOST" ]]; then # From jellymac_config.sh
     log_error_event "Torrent" "TRANSMISSION_REMOTE_HOST is not set in the configuration. Cannot connect to Transmission."
     exit 1
 fi
+if [[ -z "${STATE_DIR:-}" ]]; then # STATE_DIR from jellymac_config.sh is needed for mktemp
+    log_error_event "Torrent" "STATE_DIR is not set in the configuration. Cannot create temporary files."
+    exit 1
+fi
+
 
 # Determine Transmission CLI executable path using find_executable from common_utils.sh
-# TORRENT_CLIENT_CLI_PATH is from combined.conf.sh
+# TORRENT_CLIENT_CLI_PATH is from jellymac_config.sh
 TRANSMISSION_CLI_EXECUTABLE=$(find_executable "transmission-remote" "${TORRENT_CLIENT_CLI_PATH:-}")
 # find_executable (from common_utils.sh) will exit the script if transmission-remote is not found.
 
@@ -118,7 +124,7 @@ log_user_progress "Torrent" "📡 Connecting to Transmission..."
 declare -a transmission_remote_args=() 
 transmission_remote_args[${#transmission_remote_args[@]}]="$TRANSMISSION_REMOTE_HOST" # Server address:port
 
-if [[ -n "$TRANSMISSION_REMOTE_AUTH" ]]; then # Expected format: "username:password", from combined.conf.sh
+if [[ -n "$TRANSMISSION_REMOTE_AUTH" ]]; then # Expected format: "username:password", from jellymac_config.sh
     transmission_remote_args[${#transmission_remote_args[@]}]="--auth"
     transmission_remote_args[${#transmission_remote_args[@]}]="$TRANSMISSION_REMOTE_AUTH"
 fi
@@ -132,10 +138,10 @@ log_debug_event "Torrent" "Executing command: $TRANSMISSION_CLI_EXECUTABLE ${tra
 
 # Capture stdout and stderr for better error reporting and success message parsing
 # These temp files are local to this script execution.
-TR_STDOUT_LOG_FILE=$(mktemp "${SCRIPT_DIR}/.tr_stdout.XXXXXX") # SCRIPT_DIR is bin/
+TR_STDOUT_LOG_FILE=$(mktemp "${STATE_DIR}/.tr_stdout_magnet_handle.XXXXXX")
 _SCRIPT_TEMP_FILES_TO_CLEAN[${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]}]="$TR_STDOUT_LOG_FILE"
 
-TR_STDERR_LOG_FILE=$(mktemp "${SCRIPT_DIR}/.tr_stderr.XXXXXX")
+TR_STDERR_LOG_FILE=$(mktemp "${STATE_DIR}/.tr_stderr_magnet_handle.XXXXXX")
 _SCRIPT_TEMP_FILES_TO_CLEAN[${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]}]="$TR_STDERR_LOG_FILE"
 
 set +e # Temporarily disable exit on error to capture return code and output

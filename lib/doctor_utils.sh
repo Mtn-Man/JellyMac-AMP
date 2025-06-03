@@ -326,7 +326,6 @@ is_volume_mounted() {
             return 1 # Volume is not mounted
         fi
     fi
-    
     # Not a /Volumes path
     return 0 
 }
@@ -739,7 +738,6 @@ if [[ $missing_count -gt 0 ]]; then
         for dep in "${missing_deps[@]}"; do
             log_user_info "$log_prefix" "  • $dep"
         done
-        log_user_info "$log_prefix" "🔧 Auto-installing missing programs (AUTO_INSTALL_DEPENDENCIES=true)..."
         install_missing_dependencies "${missing_deps[@]}"
         local install_status=$?
         
@@ -870,7 +868,7 @@ if [[ $missing_count -gt 0 ]]; then
             if ! command -v "$core_tool" >/dev/null 2>&1; then
                 log_error_event "$log_prefix" "❌ Core macOS tool '$core_tool' is missing. This indicates a corrupted system."
                 log_error_event "$log_prefix" "Please repair your macOS installation before using JellyMac."
-                exit 1
+                return 1
             fi
         done
         log_debug_event "$log_prefix" "✅ All core macOS tools available."
@@ -896,4 +894,3 @@ if [[ $missing_count -gt 0 ]]; then
         return 0
     fi
 }
-

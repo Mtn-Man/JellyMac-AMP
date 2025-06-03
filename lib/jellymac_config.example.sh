@@ -25,7 +25,7 @@ ENABLE_TORRENT_AUTOMATION="true"                        # Process magnet links a
 ENABLE_CLIPBOARD_MAGNET="true"                          # Watch clipboard for magnet links? (true/false)
 ENABLE_CLIPBOARD_YOUTUBE="true"                         # Watch clipboard for YouTube links? (true/false)
 SOUND_NOTIFICATION="true"                               # Play sounds for events? (true/false)
-SHOW_STARTUP_BANNER="true"                                   
+SHOW_STARTUP_BANNER="true"                              # Display ASCII art banner on startup? (true/false)
 
 ################################################################################
 # SYSTEM CONFIGURATION (Works well with defaults - modify only if needed)
@@ -48,7 +48,6 @@ MAX_CONCURRENT_PROCESSORS="2"                            # Maximum number of con
 # Controls visual and audio feedback during operation
 
 ENABLE_DESKTOP_NOTIFICATIONS="true"                            # Show macOS notifications
-ENABLE_STARTUP_BANNER="true"                                   # Display ASCII art banner
 SOUND_INPUT_DETECTED_FILE="/System/Library/Sounds/Funk.aiff"   # Sound for new input (links or files detected)
 SOUND_TASK_SUCCESS_FILE="/System/Library/Sounds/Glass.aiff"    # Sound for task success
 SOUND_TASK_ERROR_FILE="/System/Library/Sounds/Basso.aiff"      # Sound for errors
@@ -79,9 +78,10 @@ MAIN_MEDIA_EXTENSIONS=(".mkv" ".mp4" ".avi" ".mov" ".wmv" ".flv" ".webm")
 ASSOCIATED_FILE_EXTENSIONS=(".srt" ".sub" ".ass" ".idx" ".vtt" ".nfo")
 
 # Filename Cleaning
-# To add new tags: separate with | (pipe character). Example: "NewTag|AnotherTag"
+# To add new tags: separate with | (pipe character). Example: "newtag|anothertag"
 # To customize: modify the list below, keeping existing tags or removing unwanted ones
-MEDIA_TAG_BLACKLIST="2160p|1080p|720p|480p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\.1|AAC|AC3|x265|x264|HEVC|H\.264|H\.265|REMUX|NeoNoir|SDrip|Re-Encoded"
+# Ensure tags are lowercase for compatibility.
+MEDIA_TAG_BLACKLIST="2160p|1080p|720p|480p|web[- ]?dl|webrip|bluray|brrip|hdrip|ddp5?\\.1|aac|ac3|x265|x264|hevc|h\\.264|h\\.265|remux|neonoir|sdrip|re-encoded"
 
 # Transfer Settings
 PERFORM_POST_TRANSFER_DELETE="true"  # Delete source files after successful transfer to destination
@@ -108,7 +108,7 @@ ENABLE_JELLYFIN_SCAN_YOUTUBE="false"     # Sync Jellyfin YouTube library after a
 #==============================================================================
 # Configure connection to Transmission for automatic torrent processing
 
-TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"     # Path to transmission-remote
+TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"     # Path to transmission-remote (Intel Macs might use /usr/local/bin/transmission-remote)
 TRANSMISSION_REMOTE_HOST="localhost:9091"                           # Host:port of transmission daemon
 TRANSMISSION_REMOTE_AUTH=""                                         # Leave blank if no auth required
                                                                     # Format: "username:password" if needed
@@ -121,8 +121,9 @@ LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"     # Temporary stagi
 DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
 COOKIES_ENABLED="false"                                        # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                       # Export from browser if cookies enabled
-YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (default is good quality/file size balance)
-YTDLP_OPTS=(                                                                          # For older macOS versions, you may need to adjust this to use h.264 instead of hevc             
+YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (good quality/file size balance)
+# For older macOS versions without good HEVC hardware decoding, consider changing "[vcodec=hevc]" above to "[vcodec=h264]" or similar.
+YTDLP_OPTS=(                                                                          
     --no-playlist                    # Download single video only, not entire playlist
     --merge-output-format mp4        # Combine video/audio into .mp4 container
     --embed-metadata                 # Include video title, description in file

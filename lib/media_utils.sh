@@ -124,8 +124,11 @@ extract_and_sanitize_show_info() {
     local s_num_padded=""
     local e_num_padded=""
 
-    # Use user-configurable tag blacklist, fallback to default if not set
-    local tag_regex="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\\.1|AAC|AC3|x265|x264|HEVC|H\\.264|H\\.265|REMUX|NeoNoir}"
+    # Use user-configurable tag blacklist, fallback to default (all lowercase) if not set. Convert to lowercase.
+    local config_tag_blacklist="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|web[- ]?dl|webrip|bluray|brrip|hdrip|ddp5?\\.1|aac|ac3|x265|x264|hevc|h\\.264|h\\.265|remux|neonoir}" # Default is now lowercase
+    local tag_regex
+    tag_regex=$(echo "$config_tag_blacklist" | tr '[:upper:]' '[:lower:]')
+    
     local release_group_regex='-[a-zA-Z0-9]+$' 
 
     local se_regex_pattern_strict='[Ss]([0-9]{1,3})[._ ]?[EeXx]([0-9]{1,4})' 
@@ -152,13 +155,15 @@ extract_and_sanitize_show_info() {
 
     show_title=$(echo "$raw_title_part" | sed -E 's/^[[:space:]]*[wW][wW][wW]\.[^[:space:]]+[[:space:]]*-*[[:space:]]*//') 
     show_title=$(echo "$show_title" | sed -E "s/${release_group_regex}//")
-    # Convert to lowercase before applying tag regex for case-insensitivity with sed -E 's///gI'
-    # and before general cleaning.
+    
+    # Convert to lowercase before applying tag regex and general cleaning.
+    local show_title_lower
     show_title_lower=$(echo "$show_title" | tr '[:upper:]' '[:lower:]')
+    
     show_title=$(echo "$show_title_lower" | sed -E \
         -e 's/^[\[\(][^\]\)]*[\]\)]//g' \
         -e 's/[\[\(][^\]\)]*[\]\)]$//g' \
-        -e "s/${tag_regex}//gI" \
+        -e "s/${tag_regex}//g" \
         -e 's/[._-]/ /g' \
         | tr -s ' ' \
         | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
@@ -204,11 +209,11 @@ extract_and_sanitize_show_info() {
     
     if [[ -z "$show_title" || "$show_title" == "Unknown Show" ]]; then
         if [[ "$original_name" =~ ^([A-Za-z0-9]+)\.([Ss][0-9]{2}[Ee][0-9]{2}) ]]; then
-            show_name_raw="${BASH_REMATCH[1]}"
-            show_title="$show_name_raw"
+            local show_name_raw="${BASH_REMATCH[1]}"
+            show_title="$show_name_raw" # This might need further sanitization/title casing
         elif [[ -n "$season_episode_str" ]]; then # If S/E found but title is still unknown
             # Fallback: use original name part before S/E, minimal cleaning
-            show_title_fallback="${original_name%%"${se_match_full}"*}"
+            local show_title_fallback="${original_name%%"${se_match_full}"*}"
             # Replace dots and underscores with spaces using parameter expansion
             show_title_fallback="${show_title_fallback//[._]/ }"
             # Use external commands for complex operations (space collapse, title case, whitespace trim)
@@ -268,15 +273,27 @@ extract_and_sanitize_movie_info() {
     name_spaced=$(echo "$name_spaced" | tr -s ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
     log_debug_event "Media" "extract_and_sanitize_movie_info: After space cleanup='$name_spaced'"
     
-    local tag_regex="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|WEB[- ]?DL|WEBRip|BluRay|BRRip|HDRip|DDP5?\\.1|AAC|AC3|x265|x264|HEVC|H\\.264|H\\.265|REMUX|NeoNoir}"
-    log_debug_event "Media" "extract_and_sanitize_movie_info: Using tag regex='$tag_regex'"
+    # Ensure tag_regex is lowercase
+    local config_tag_blacklist="${MEDIA_TAG_BLACKLIST:-1080p|720p|480p|2160p|web[- ]?dl|webrip|bluray|brrip|hdrip|ddp5?\\.1|aac|ac3|x265|x264|hevc|h\\.264|h\\.265|remux|neonoir}" # Default is now lowercase
+    local tag_regex
+    tag_regex=$(echo "$config_tag_blacklist" | tr '[:upper:]' '[:lower:]')
+    log_debug_event "Media" "extract_and_sanitize_movie_info: Using (lowercase) tag regex='$tag_regex'"
+
+    # Convert input string to lowercase for matching
+    local name_spaced_lower
+    name_spaced_lower=$(echo "$name_spaced" | tr '[:upper:]' '[:lower:]')
+    log_debug_event "Media" "extract_and_sanitize_movie_info: Lowercase name for tag removal='$name_spaced_lower'"
     
-    # Remove quality/encoding tags
-    local cleaned_name
-    cleaned_name=$(echo "$name_spaced" | sed -E "s/ ($tag_regex)( |$)/ /gI" | tr -s ' ')
-    log_debug_event "Media" "extract_and_sanitize_movie_info: After tag removal='$cleaned_name'"
+    # Remove quality/encoding tags using lowercase input and lowercase regex
+    local cleaned_name_lower # This will be the result after tag removal, in lowercase
+    cleaned_name_lower=$(echo "$name_spaced_lower" | sed -E "s/ ($tag_regex)( |$)/ /g" | tr -s ' ') # 'I' flag removed
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After tag removal (still lowercase)='$cleaned_name_lower'"
+
+    # Use the lowercase version for subsequent processing, it will be title-cased later.
+    local cleaned_name="$cleaned_name_lower"
     
     # STEP 1: Check if year is already in parentheses (like "Thunderbolts (2025)")
+    # Note: Year extraction regex should work fine on lowercase 'cleaned_name'
     if [[ $cleaned_name =~ ^(.*[[:space:]])\(([12][0-9]{3})\)(.*)$ ]]; then
         local title_part="${BASH_REMATCH[1]}"
         local year="${BASH_REMATCH[2]}"
@@ -288,16 +305,18 @@ extract_and_sanitize_movie_info() {
         if [[ ${#remaining} -lt 10 ]]; then
             log_debug_event "Media" "extract_and_sanitize_movie_info: Minimal content after year (${#remaining} chars), accepting format"
             
-            # Clean title and keep the year
+            # Clean title (which is currently lowercase) and keep the year
             title_part=$(echo "$title_part" | sed -E 's/[[:space:]]*$//')
-            title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
-            title_part=$(sanitize_filename "$title_part" "Unknown Movie")
+            # Title casing will happen at the end. For now, sanitize.
+            title_part=$(sanitize_filename "$title_part" "Unknown Movie") 
             
-            log_debug_event "Media" "extract_and_sanitize_movie_info: Processed title='$title_part'"
+            log_debug_event "Media" "extract_and_sanitize_movie_info: Processed title (pre-titlecase)='$title_part'"
             
-            # Validate year before returning
+            # Validate year before returning (title will be cased later)
             if is_valid_media_year "$year"; then
-                log_debug_event "Media" "extract_and_sanitize_movie_info: Year '$year' is valid, returning '$title_part ($year)'"
+                log_debug_event "Media" "extract_and_sanitize_movie_info: Year '$year' is valid. Title part: '$title_part'. Will be title-cased and returned."
+                # Title case before returning
+                title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
                 echo "$title_part ($year)"
                 return 0
             else
@@ -310,9 +329,9 @@ extract_and_sanitize_movie_info() {
         log_debug_event "Media" "extract_and_sanitize_movie_info: No parentheses year format found, continuing to fallback logic"
     fi
     
-    # STEP 3: Fallback to existing logic for other year formats
-    local year=""
-    local title_part
+    # STEP 3: Fallback to existing logic for other year formats (operates on lowercase 'cleaned_name')
+    local year="" # Reset year for fallback logic
+    local title_part # This will be assigned based on fallback
     if [[ $cleaned_name =~ .*(^|[^0-9])([12][0-9]{3})($|[^0-9]) ]]; then
         year="${BASH_REMATCH[2]}"
         
@@ -325,25 +344,25 @@ extract_and_sanitize_movie_info() {
         
         if [[ ${#title_after_year} -gt 15 ]]; then
             log_debug_event "Media" "extract_and_sanitize_movie_info: Too much content after year, treating as no year"
-            title_part="$cleaned_name"
+            title_part="$cleaned_name" # The full lowercase name without tags
             year="" 
         else
             log_debug_event "Media" "extract_and_sanitize_movie_info: Using title before year"
-            title_part="$title_before_year"
+            title_part="$title_before_year" # Lowercase part before year
         fi
     else
         log_debug_event "Media" "extract_and_sanitize_movie_info: No year found in fallback logic"
-        title_part="$cleaned_name"
+        title_part="$cleaned_name" # The full lowercase name without tags
     fi
     
-    log_debug_event "Media" "extract_and_sanitize_movie_info: Pre-processing title_part='$title_part', year='$year'"
+    log_debug_event "Media" "extract_and_sanitize_movie_info: Pre-titlecase/sanitization title_part='$title_part', year='$year'"
     
     # STEP 4: Title case and sanitization
-    title_part=$(echo "$title_part" | sed -E 's/^ +| +$//g')
+    title_part=$(echo "$title_part" | sed -E 's/^ +| +$//g') # Trim spaces first
     title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
     title_part=$(sanitize_filename "$title_part" "Unknown Movie")
     
-    log_debug_event "Media" "extract_and_sanitize_movie_info: After sanitization title_part='$title_part'"
+    log_debug_event "Media" "extract_and_sanitize_movie_info: After titlecase/sanitization title_part='$title_part'"
     
     # Final validation and formatting
     if [[ -n "$year" ]]; then

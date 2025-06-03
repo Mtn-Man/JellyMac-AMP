@@ -398,8 +398,8 @@ wait_for_file_stability() {
         if [[ "$(uname)" == "Darwin" ]]; then
             if [[ -d "$item_path" ]]; then
                 local sum_size=0
-                local find_output_temp; find_output_temp=$(mktemp "${SCRIPT_DIR:-/tmp}/.stability_find_XXXXXX")
-                local xargs_stat_output_temp; xargs_stat_output_temp=$(mktemp "${SCRIPT_DIR:-/tmp}/.stability_xargs_XXXXXX")
+                local find_output_temp; find_output_temp=$(mktemp "${STATE_DIR}/.stability_find_XXXXXX")
+                local xargs_stat_output_temp; xargs_stat_output_temp=$(mktemp "${STATE_DIR}/.stability_xargs_XXXXXX")
                 _COMMON_UTILS_TEMP_FILES_TO_CLEAN[${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]}]="$find_output_temp"
                 _COMMON_UTILS_TEMP_FILES_TO_CLEAN[${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]}]="$xargs_stat_output_temp"
 
