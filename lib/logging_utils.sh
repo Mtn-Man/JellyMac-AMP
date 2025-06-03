@@ -34,7 +34,7 @@ _log_event_if_level_met() {
     local required_level="$1"
     local prefix="$2"
     local message="$3"
-    local output_stream_override="${4}" # Optional override
+    local output_stream_override="${4:-}" # Optional override
 
     if [[ "$SCRIPT_CURRENT_LOG_LEVEL" -le "$required_level" ]]; then
         # Console output
@@ -60,8 +60,8 @@ _log_event_if_level_met() {
 # Returns: None
 #===============================================================================
 log_debug_event() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_DEBUG" "🔧 $module" "$message"
 }
 
@@ -74,8 +74,8 @@ log_debug_event() {
 # Returns: None
 #===============================================================================
 log_info_event() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_INFO" "🪼 $module" "$message"
 }
 
@@ -88,8 +88,8 @@ log_info_event() {
 # Returns: None
 #===============================================================================
 log_warn_event() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_WARN" "⚠️ $module" "$message"
 }
 
@@ -102,8 +102,8 @@ log_warn_event() {
 # Returns: None
 #===============================================================================
 log_error_event() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_ERROR" "❌ $module" "$message"
 }
 
@@ -122,8 +122,8 @@ log_error_event() {
 # Returns: None
 #===============================================================================
 log_user_info() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     local emoji
     
     # Auto-assign emoji based on module
@@ -153,8 +153,8 @@ log_user_info() {
 # Returns: None
 #===============================================================================
 log_user_success() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_INFO" "✅ $module" "$message"
 }
 
@@ -167,8 +167,8 @@ log_user_success() {
 # Returns: None
 #===============================================================================
 log_user_progress() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     local emoji
     
     # Auto-assign progress emoji based on module
@@ -198,8 +198,8 @@ log_user_progress() {
 # Returns: None
 #===============================================================================
 log_user_start() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_INFO" "🚀 $module" "$message"
 }
 
@@ -212,8 +212,8 @@ log_user_start() {
 # Returns: None
 #===============================================================================
 log_user_complete() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_INFO" "🎉 $module" "$message"
 }
 
@@ -226,8 +226,8 @@ log_user_complete() {
 # Returns: None
 #===============================================================================
 log_user_status() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_INFO" "🔄 $module" "$message"
 }
 
@@ -240,8 +240,8 @@ log_user_status() {
 # Returns: None
 #===============================================================================
 log_user_shutdown() {
-    local module="$1"
-    local message="$2"
+    local module="${1:-Unknown}"
+    local message="${2:-}"
     _log_event_if_level_met "$LOG_LEVEL_INFO" "👋 $module" "$message"
 }
 
