@@ -56,35 +56,35 @@ EXAMPLE_PATH="${SCRIPT_DIR}/lib/jellymac_config.example.sh"
 # Auto-setup configuration if needed
 if [[ ! -f "$CONFIG_PATH" ]]; then
     if [[ -f "$EXAMPLE_PATH" ]]; then
-        log_user_info "JELLYMAC_SETUP" "No configuration found."
-        log_user_info "JELLYMAC_SETUP" ""
-        log_user_info "JELLYMAC_SETUP" "🚀 First time setup - Would you like to create a config file with default settings?"
-        log_user_info "JELLYMAC_SETUP" "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
-        log_user_info "JELLYMAC_SETUP" "   You can customize paths later by editing lib/jellymac_config.sh"
-        log_user_info "JELLYMAC_SETUP" ""
+        echo "No configuration found."
+        echo
+        echo "🚀 First time setup - Would you like to create a config file with default settings?"
+        echo "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
+        echo "   You can customize paths later by editing lib/jellymac_config.sh"
+        echo
         
-         read -r -p "Create default config? (Y/n): " response
+        read -r -p "Create default config? (Y/n): " response
         
         case "$(echo "$response" | tr '[:upper:]' '[:lower:]')" in
             ""|y|yes)
                 if cp "$EXAMPLE_PATH" "$CONFIG_PATH"; then
-                    log_user_info "JELLYMAC_SETUP" "✅ Created jellymac_config.sh with default settings."
-                    log_user_info "JELLYMAC_SETUP" "   Edit lib/jellymac_config.sh to customize paths for your setup."
-                    log_user_info "JELLYMAC_SETUP" ""
+                    echo "✅ Created jellymac_config.sh with default settings."
+                    echo "You may now edit lib/jellymac_config.sh to customize paths for your setup if desired."
+                    echo
                 else
                     log_error_event "JELLYMAC_SETUP" "❌ Failed to create config file. Check permissions."
                     exit 1
                 fi
                 ;;
             n|no)
-                log_user_info "JELLYMAC_SETUP" "Setup cancelled. Please create config manually:"
-                log_user_info "JELLYMAC_SETUP" "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
+                echo "Setup cancelled. Please create config manually:"
+                echo "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
                 exit 1
                 ;;
             *)
-                log_user_info "JELLYMAC_SETUP" "Invalid response. Please enter 'yes' or 'no'."
-                log_user_info "JELLYMAC_SETUP" "Setup cancelled. Please create config manually:"
-                log_user_info "JELLYMAC_SETUP" "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
+                echo "Invalid response. Please enter 'yes' or 'no'."
+                echo "Setup cancelled. Please create config manually:"
+                echo "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
                 exit 1
                 ;;
         esac
@@ -668,6 +668,7 @@ process_drop_folder() {
     done < "$find_results_file" 
     rm -f "$find_results_file" 
 }
+
 #==============================================================================
 # Function: show_startup_banner
 # Description: Displays ASCII startup banner if enabled in config
@@ -792,7 +793,6 @@ fi
 # If we get here, directory checks are already done by validate_config_filepaths() in doctor_utils.sh
 
 log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
-
 log_user_info "JellyMac" ""
 log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.1) ---"
 log_user_info "JellyMac" "⏱️  Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"

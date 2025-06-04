@@ -226,20 +226,20 @@ handle_missing_dependencies_interactively() {
     echo -e "\033[36m|\033[0m       \033[1m\033[33mWelcome to JellyMac - First Time Setup\033[0m       \033[36m|\033[0m"
     echo -e "\033[36m+----------------------------------------------------+\033[0m"
     echo
-    log_user_info "$log_prefix" "We noticed this is your first time running JellyMac."
-    log_user_info "$log_prefix" "Before we can start automating your media library, we need to set up a few things."
-    log_user_info "$log_prefix" ""
-    log_user_info "$log_prefix" "Missing Programs:"
+    echo -e "We noticed this is your first time running JellyMac."
+    echo -e "Before we can start automating your media library, we need to set up a few things."
+    echo
+    echo -e "Missing Programs:"
     
     # Print each missing dependency with package info
     for ((i=0; i<${#missing_deps[@]}; i++)); do
         local dep="${missing_deps[$i]}"
-        log_user_info "$log_prefix" "  • $dep"
+        echo "  • $dep"
     done
     
-    log_user_info "$log_prefix" ""
-    log_user_info "$log_prefix" "These helper programs are needed for JellyMac to work properly with your media files."
-    log_user_info "$log_prefix" ""
+    echo
+    echo -e "These helper programs are needed for JellyMac to work properly with your media files."
+    echo
     
     # Present options
     echo -e "\033[1mHow would you like to proceed?\033[0m"
@@ -256,7 +256,7 @@ handle_missing_dependencies_interactively() {
     # Normalize the response - empty string defaults to "2"
     case "$(echo "${selection:-2}" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" in
         1|one)  # Install dependencies now (one-time)
-            log_user_info "$log_prefix" "Installing programs for this run only..."
+            echo "Installing programs for this run only..."
             AUTO_INSTALL_DEPENDENCIES="true"
             install_missing_dependencies "${missing_deps[@]}"
             local install_status=$?
