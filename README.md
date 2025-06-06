@@ -152,7 +152,7 @@ Eli Sher (Mtn-Man) - elisher@duck.com
 
 ## VERSION
 
-BETA 0.2.1
+BETA 0.2.2
 
 ## LICENSE
 

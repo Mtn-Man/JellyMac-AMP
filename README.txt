@@ -180,7 +180,7 @@ Eli Sher (Mtn-Man) - elisher@duck.com
 
 VERSION
 -------
-BETA v0.2.1
+BETA v0.2.2
 
 LICENSE
 -------
