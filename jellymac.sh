@@ -12,8 +12,8 @@
 # - Can fully automate the media acquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: v0.2.1
-# Last Updated: 2025-05-26
+# Version: v0.2.2
+# Last Updated: 2025-06-06
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -54,31 +54,68 @@ CONFIG_PATH="${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}"
 EXAMPLE_PATH="${SCRIPT_DIR}/lib/jellymac_config.example.sh"
 
 # Auto-setup configuration if needed
+# Auto-setup configuration if needed
 if [[ ! -f "$CONFIG_PATH" ]]; then
     if [[ -f "$EXAMPLE_PATH" ]]; then
-        log_user_info "JELLYMAC_SETUP" "No configuration found."
-        log_user_info "JELLYMAC_SETUP" ""
-        log_user_info "JELLYMAC_SETUP" "🚀 First time setup - Would you like to create a config file with default settings?"
-        log_user_info "JELLYMAC_SETUP" "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
-        log_user_info "JELLYMAC_SETUP" "   You can customize paths later by editing lib/jellymac_config.sh"
-        log_user_info "JELLYMAC_SETUP" ""
+        echo ""
+        echo "                    Welcome to JellyMac!"
+        echo ""
+        echo "   It looks like you haven't set up your configuration file yet."
+        echo ""
+        echo "   Would you like to create a new config file with default settings?"
+        echo "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
+        echo ""
         
         read -r -p "Create default config? (Y/n): " response
         
         case "$(echo "$response" | tr '[:upper:]' '[:lower:]')" in
             ""|y|yes)
                 if cp "$EXAMPLE_PATH" "$CONFIG_PATH"; then
-                    log_user_info "JELLYMAC_SETUP" "✅ Created jellymac_config.sh with default settings."
-                    log_user_info "JELLYMAC_SETUP" "   Edit lib/jellymac_config.sh to customize paths for your setup."
-                    log_user_info "JELLYMAC_SETUP" ""
+                    echo "✅ Created jellymac_config.sh with default settings."
+                    echo ""
+                    echo "Would you like to:"
+                    echo "  1) Open the config file now to customize your library paths"
+                    echo "  2) Continue with the default local setup (~/Movies/Movies, ~/Movies/Shows, etc.)"
+                    echo ""
+                    
+                    read -r -p "Choose option [1-2] (2): " config_choice
+                    
+                    case "$(echo "${config_choice:-2}" | tr '[:upper:]' '[:lower:]')" in
+                        1|one)
+                            echo ""
+                            echo "Opening config file in TextEdit..."
+                            echo "After saving your changes, run ./jellymac.sh again to start with your custom settings."
+                            echo ""
+                            
+                            open -a TextEdit "$CONFIG_PATH"
+                            
+                            echo "Config file opened! Edit your paths and save, then restart JellyMac."
+                            exit 0
+                            ;;
+                        ""|2|two)
+                            echo "Continuing with default local setup..."
+                            echo "You can edit lib/jellymac_config.sh later if needed."
+                            echo ""
+                            ;;
+                        *)
+                            echo "Invalid selection. Continuing with default local setup..."
+                            echo ""
+                            ;;
+                    esac
                 else
                     log_error_event "JELLYMAC_SETUP" "❌ Failed to create config file. Check permissions."
                     exit 1
                 fi
                 ;;
+            n|no)
+                echo "Setup cancelled. Please create config manually:"
+                echo "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
+                exit 1
+                ;;
             *)
-                log_user_info "JELLYMAC_SETUP" "Setup cancelled. Please create config manually:"
-                log_user_info "JELLYMAC_SETUP" "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
+                echo "Invalid response. Please enter 'yes' or 'no'."
+                echo "Setup cancelled. Please create config manually:"
+                echo "   cd lib && cp jellymac_config.example.sh jellymac_config.sh"
                 exit 1
                 ;;
         esac
@@ -420,6 +457,7 @@ trap graceful_shutdown_and_cleanup SIGINT SIGTERM EXIT
 # Parameters: None
 # Returns: None
 # Side Effects: Updates _ACTIVE_PROCESSOR_INFO_STRING, cleans up completed tasks
+# Dev Note: We use | and ||| as delimiters in _ACTIVE_PROCESSOR_INFO_STRING ensure no conflicts with parsed vars (sanitize input)
 manage_active_processors() {
     [[ -z "$_ACTIVE_PROCESSOR_INFO_STRING" ]] && return 
 
@@ -528,7 +566,7 @@ _check_clipboard_youtube() {
         # Bash 3.2 compatible: Use case statement instead of regex where possible
         case "$trimmed_cb" in
             https://www.youtube.com/watch\?v=*|https://youtu.be/*)
-                log_user_info "JellyMac" "▶️ Detected YouTube URL: '${trimmed_cb:0:70}...'"
+                log_user_info "JellyMac" "Detected YouTube URL: '${trimmed_cb:0:70}...'"
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
                 
                 if "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb"; then
@@ -613,7 +651,7 @@ process_drop_folder() {
             log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) already processing. Skipping."; continue
         fi
 
-        log_user_info "JellyMac" "Checking stability for an item in your Drop Folder: '$item_basename'"
+        log_debug_event "JellyMac" "Checking stability for an item in your Drop Folder: '$item_basename'"
         if ! wait_for_file_stability "$item_path" "${STABLE_CHECKS_DROP_FOLDER:-3}" "${STABLE_SLEEP_INTERVAL_DROP_FOLDER:-10}"; then
             log_debug_event "JellyMac" "Item '$item_basename' (DROP_FOLDER) not stable. Will re-check next cycle."; continue
         fi
@@ -662,6 +700,7 @@ process_drop_folder() {
     done < "$find_results_file" 
     rm -f "$find_results_file" 
 }
+
 #==============================================================================
 # Function: show_startup_banner
 # Description: Displays ASCII startup banner if enabled in config
@@ -702,7 +741,7 @@ _acquire_lock  # Ensure only one instance of JellyMac runs at a time
 show_startup_banner  # Call the startup banner function if enabled
 
 log_user_info "JellyMac" "🚀 JellyMac Starting..."
-log_user_info "JellyMac" "Version: v0.2.1 (2025-05-31)"
+log_user_info "JellyMac" "Version: v0.2.2 (2025-06-06)"
 log_user_info "JellyMac" "JellyMac location: $JELLYMAC_PROJECT_ROOT"
 log_debug_event "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
@@ -741,7 +780,7 @@ for pth_to_check in "${local_operational_paths_to_check[@]}"; do
         log_debug_event "JellyMac" "✅ Local operational path '$pth_to_check' configuration is present (existence/creation checked by doctor_utils.sh)."
     fi
 done
-log_user_info "JellyMac" "✅ Directory configuration verification complete."
+log_user_info "JellyMac" "Directory configuration verification complete ✅"
 
 log_debug_event "JellyMac" "Verifying program files are executable..."
 for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PROCESS_MEDIA_ITEM_SCRIPT"; do
@@ -749,7 +788,7 @@ for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PRO
         log_error_event "JellyMac" "CRITICAL: Essential program file '$helper_script_path' is not found or not executable. Exiting."
         exit 1
     fi
-done; log_user_info "JellyMac" "✅ All essential program files ready to go!"
+done; log_user_info "JellyMac" "All essential program files ready ✅"
 
 if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
     log_user_info "JellyMac" "☕ Starting 'caffeinate' to prevent system sleep..."
@@ -765,8 +804,8 @@ if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
 fi
 
 if [[ -n "$HISTORY_FILE" ]]; then
-    if [[ ! -f "$HISTORY_FILE" ]]; then log_user_info "JellyMac" "📝 History file '$HISTORY_FILE' will be created on first use.";
-    else log_debug_event "JellyMac" "📝 Using history file: $HISTORY_FILE"; fi
+    if [[ ! -f "$HISTORY_FILE" ]]; then log_user_info "JellyMac" "History file '$HISTORY_FILE' will be created on first use.";
+    else log_debug_event "JellyMac" "Using history file: $HISTORY_FILE"; fi
 else log_warn_event "JellyMac" "HISTORY_FILE not configured. No history will be recorded."; fi
 
 # --- Store command paths as needed for runtime ---
@@ -785,10 +824,9 @@ fi
 
 # If we get here, directory checks are already done by validate_config_filepaths() in doctor_utils.sh
 
-log_user_info "JellyMac" "✅ All critical checks passed and paths validated."
-
+log_user_info "JellyMac" "All critical checks passed and paths validated ✅"
 log_user_info "JellyMac" ""
-log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.1) ---"
+log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.2) ---"
 log_user_info "JellyMac" "⏱️  Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" ""
 log_user_info "JellyMac" "🎬 Media Destinations:"
@@ -798,8 +836,7 @@ log_user_info "JellyMac" "   YouTube → ${DEST_DIR_YOUTUBE:-N/A}"
 log_user_info "JellyMac" ""
 log_user_info "JellyMac" "📂 Drop Folder: ${DROP_FOLDER:-N/A}"
 log_user_info "JellyMac" "📋 Clipboard: YouTube=${ENABLE_CLIPBOARD_YOUTUBE:-false} | Magnet=${ENABLE_CLIPBOARD_MAGNET:-false}"
-
-
+log_user_info "JellyMac" ""
 # Jellyfin status
 if [[ -n "${JELLYFIN_SERVER:-}" && -n "${JELLYFIN_API_KEY:-}" ]]; then
     log_user_info "JellyMac" "🪼 Jellyfin: ${JELLYFIN_SERVER}"
@@ -832,5 +869,4 @@ while true; do
     log_debug_event "JellyMac" "Main loop iter done. Sleeping ${MAIN_LOOP_SLEEP_INTERVAL:-15}s."
     sleep "${MAIN_LOOP_SLEEP_INTERVAL:-15}"
 done
-
 exit 0

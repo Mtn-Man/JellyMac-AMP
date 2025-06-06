@@ -398,8 +398,8 @@ wait_for_file_stability() {
         if [[ "$(uname)" == "Darwin" ]]; then
             if [[ -d "$item_path" ]]; then
                 local sum_size=0
-                local find_output_temp; find_output_temp=$(mktemp "${SCRIPT_DIR:-/tmp}/.stability_find_XXXXXX")
-                local xargs_stat_output_temp; xargs_stat_output_temp=$(mktemp "${SCRIPT_DIR:-/tmp}/.stability_xargs_XXXXXX")
+                local find_output_temp; find_output_temp=$(mktemp "${STATE_DIR}/.stability_find_XXXXXX")
+                local xargs_stat_output_temp; xargs_stat_output_temp=$(mktemp "${STATE_DIR}/.stability_xargs_XXXXXX")
                 _COMMON_UTILS_TEMP_FILES_TO_CLEAN[${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]}]="$find_output_temp"
                 _COMMON_UTILS_TEMP_FILES_TO_CLEAN[${#_COMMON_UTILS_TEMP_FILES_TO_CLEAN[@]}]="$xargs_stat_output_temp"
 
@@ -520,7 +520,7 @@ wait_for_file_stability() {
         log_debug_event "Utils" "↳ '$item_basename': Check $((i + 1))/$max_stable_checks_for_item, Display Size: ${current_size_display}, ByteSize:Mtime: [${current_combined_stat}] (Stable count: $stable_count/$max_stable_checks_for_item)"
 
         if [[ "$stable_count" -ge "$max_stable_checks_for_item" ]]; then
-            log_user_progress "Utils" "✅ '$item_basename': Stable (${current_size_display})"
+            log_user_success "Utils" "✅ '$item_basename': File Size stable: Download appears to be complete (${current_size_display})"
             return 0
         fi
 
@@ -532,7 +532,7 @@ wait_for_file_stability() {
         fi
     done
 
-    log_warn_event "Utils" "⚠️ '$item_basename': Not stable after $max_stable_checks_for_item checks (Last ByteSize:Mtime: [${last_combined_stat}])."
+    log_debug_event "Utils" "⚠️ '$item_basename': Not stable after $max_stable_checks_for_item checks (Last ByteSize:Mtime: [${last_combined_stat}])."
     return 1
 }
 

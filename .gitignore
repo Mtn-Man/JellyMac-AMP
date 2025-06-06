@@ -1,6 +1,8 @@
 # Ignore user-specific configuration
 lib/jellymac_config.sh
-
+# Ignore backups of config file
+lib/jellymac_config.sh.bak
+lib/jellymac_config.example.sh.bak
 # Ignore log files and directory
 logs/
 *.log
@@ -17,8 +19,6 @@ logs/
 # *.tmp
 # .*.tmp
 
-# Ignore backups of config file
-lib/jellymac_config.sh.bak
 
 .yt_download_archive.txt
 

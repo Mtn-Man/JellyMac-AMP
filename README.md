@@ -1,4 +1,5 @@
 # 🪼 JellyMac
+
 ### Automated Media Assistant for macOS
 
 Transform media chaos into organized bliss with just a copy or a drop.
@@ -36,57 +37,78 @@ Your Mac runs JellyMac, but your media server can be anywhere - Linux, Windows, 
 
 ## INSTALLATION
 
-To begin, open the Terminal app, you can copy and paste (Cmd+C and Cmd+V) the following commands one at a time.
+To get started with JellyMac, open your Terminal app. You can copy and paste (Cmd+C and Cmd+V) the following commands one at a time.
 
-### Step 1: Install Homebrew and Git
-Visit [brew.sh](https://brew.sh) for instructions:
+### Step 1: Install Homebrew (if you don't have it) and Git
+
+First, install Homebrew by pasting this command and following the on-screen instructions:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then, install Git using Homebrew:
+
+```bash
 brew install git
 ```
 
-### Step 2: Clone and setup JellyMac
+### Step 2: Download and Prepare JellyMac
+
+Clone the JellyMac repository from GitHub:
 
 ```bash
 git clone https://github.com/Mtn-Man/JellyMac.git JellyMac
+```
+
+Navigate into the JellyMac directory and make the necessary scripts executable:
+
+```bash
 cd JellyMac && chmod +x jellymac.sh bin/*.sh
 ```
 
-### Step 3: Run JellyMac - that's it!
+### Step 3: Run JellyMac for the First Time
+
+Now, start JellyMac:
 
 ```bash
 ./jellymac.sh
 ```
 
-### Interactive Setup Wizard
+On its first run, JellyMac initiates an interactive setup wizard that will:
+- Offer to create a default configuration file (lib/jellymac_config.sh) if it's missing
+- Guide you through installing any missing helper programs (like yt-dlp, transmission-cli, ffmpeg, or flock)
+- Create necessary operational folders with sensible defaults
+- Offer to automatically configure Transmission for seamless magnet link automation
 
-The interactive setup wizard takes over from here:
-- Copies a new default config file from the example if you have not already done so
-- Guides you through installing any missing dependencies (yt-dlp, transmission-cli, ffmpeg, flock)
-- Creates all necessary folders with sensible defaults
-- Configures Transmission for magnet link automation
+### Step 4: Customize Your Configuration (Recommended)
 
+After the initial setup, JellyMac creates lib/jellymac_config.sh. It's highly recommended to edit this file to match your setup, especially if you use a media server or network storage.
 
-### What Happens Next?
-After installation, you'll see the professional JellyMac banner and guided setup. The whole process takes just a few minutes, and you'll be automating your media workflow immediately.
+To edit:
+1. Navigate to the lib folder inside your JellyMac directory
+2. Open lib/jellymac_config.sh with a text editor (e.g., nano, TextEdit)
+3. Key paths to update include:
+   - DEST_DIR_MOVIES: Your main movies library folder
+   - DEST_DIR_SHOWS: Your main TV shows library folder
+   - DEST_DIR_YOUTUBE: Where YouTube downloads should go
+   - DROP_FOLDER: The folder JellyMac will monitor
+   
+   Refer to Getting_Started.txt or Configuration_Guide.txt for details on all options
+4. Save the file. JellyMac will use these new settings the next time it runs or processes media
 
+### Zero-Config Setup (for Local Use)
 
-### Zero-Config Setup
+If you're using JellyMac only for local media on your Mac and don't have a separate media server, the default paths created by the setup wizard often work out of the box:
+- Movies are typically organized in `~/Movies/Movies`
+- TV shows in `~/Movies/Shows` 
+- The drop folder is usually `~/Downloads/JellyDrop`
 
-Default settings work great for local media storage and organization.
-- Your movies go to `~/Movies/Movies`
-- Your TV shows to `~/Movies/Shows` 
-- Your Drop folder is `~/Downloads/JellyDrop`
-
-Just press Enter through the setup and you're good to go!
-
-### Network Setup (Optional)
-You can easily configure network shares by editing the config file to add their paths before running the script.
+You can often press Enter through most setup prompts for this scenario.
 
 ---
 
-When finished using JellyMac, just press `control+c` to quit, or simply close your terminal.
+When finished using JellyMac, press `Ctrl+C` in the Terminal window where it's running, or simply close the Terminal window.
 
 ## REQUIREMENTS
 
@@ -95,7 +117,7 @@ When finished using JellyMac, just press `control+c` to quit, or simply close yo
 - A few minutes for the guided setup process
 - [Optional] Media server (Jellyfin, Plex, etc.) for streaming organized content
 
-Dependencies like yt-dlp, ffmpeg, transmission-cli, and flock install automatically during setup.
+Dependencies like yt-dlp, ffmpeg, transmission-cli, and flock will be offered to be installed automatically during setup if they're not already installed.
 
 ## DOCUMENTATION
 
@@ -115,10 +137,12 @@ See [`Getting_Started.txt`](Getting_Started.txt) for detailed setup instructions
 
 Planned features include:
 
-- **Season pack handling** - Automatically extract and organize multi-episode archives
-- **Movie series detection** - Intelligently group franchises and sequels into collections  
-- **Better title cleaning** - Enhanced parsing for complex release naming patterns
-- **Archive extraction** - Seamlessly unpack compressed media files
+- **Movie/TV Show season/collection/pack handling** - Automatically extract and organize multi-episode archives into the correct structure
+- **YouTube playlist support** - Download and organize entire playlists automatically
+- **Enhanced metadata extraction** - Better parsing and organization of media information
+- **Improved file recognition and filtering** - More accurate identification of media types
+- **GUI version** - User-friendly graphical interface for configuration and monitoring
+- **Archive extraction** - Seamlessly unpack compressed media files without manual intervention
 
 Feature requests and bug reports welcome!
 

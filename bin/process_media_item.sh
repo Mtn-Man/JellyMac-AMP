@@ -248,9 +248,9 @@ _processor_move_media_and_associated_files() {
         done
 
         local find_stdout_tmp xargs_stat_stdout_tmp
-        find_stdout_tmp=$(mktemp "${SCRIPT_DIR_PROCESSOR}/.media_find_stdout.XXXXXX")
+        find_stdout_tmp=$(mktemp "${STATE_DIR}/.media_find_proc_stdout.XXXXXX")
         _PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[${#_PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[@]}]="$find_stdout_tmp"
-        xargs_stat_stdout_tmp=$(mktemp "${SCRIPT_DIR_PROCESSOR}/.media_xargs_stat_stdout.XXXXXX")
+        xargs_stat_stdout_tmp=$(mktemp "${STATE_DIR}/.media_xargs_stat_proc.XXXXXX")
         _PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[${#_PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN[@]}]="$xargs_stat_stdout_tmp"
 
         find "$source_content_base_path" -maxdepth 1 -type f \( "${find_main_patterns_arr[@]}" \) -print0 2>/dev/null > "$find_stdout_tmp"
@@ -272,7 +272,7 @@ _processor_move_media_and_associated_files() {
             fi
         fi
         
-        xargs --null -I{} stat -f "%z %N" "{}" < "$find_stdout_tmp" 2>/dev/null > "$xargs_stat_stdout_tmp"
+        xargs -0 -I{} stat -f "%z %N" "{}" < "$find_stdout_tmp" 2>/dev/null > "$xargs_stat_stdout_tmp"
         
         if [[ ! -s "$xargs_stat_stdout_tmp" ]]; then
             log_warn_event "Processing" "stat command (via xargs) produced no output for files in '$source_content_base_path' (or subdirs). Possible permission issue or files vanished."
@@ -625,7 +625,6 @@ fi
 _cleanup_process_media_item_temp_files 
 
 log_debug_event "Processing" "--- Processor Finished for Item: '$original_item_basename_for_log' with Reported Exit Code: $PROCESSOR_EXIT_CODE ---"
-log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds..."
-log_user_status "JellyMac" "(Press Ctrl+C to exit any time)"
+
 exit "$PROCESSOR_EXIT_CODE"
 

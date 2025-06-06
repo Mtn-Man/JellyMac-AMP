@@ -183,8 +183,8 @@ fi
 ytdlp_command_args[${#ytdlp_command_args[@]}]="$YOUTUBE_URL" 
 
 # Create temporary files to capture yt-dlp output for error analysis
-YTDLP_STDOUT_CAPTURE_FILE=$(mktemp "${SCRIPT_DIR}/.ytdlp_stdout.XXXXXX")
-YTDLP_STDERR_CAPTURE_FILE=$(mktemp "${SCRIPT_DIR}/.ytdlp_stderr.XXXXXX")
+YTDLP_STDOUT_CAPTURE_FILE=$(mktemp "${STATE_DIR}/.ytdlp_stdout_yt_handle.XXXXXX")
+YTDLP_STDERR_CAPTURE_FILE=$(mktemp "${STATE_DIR}/.ytdlp_stderr_yt_handle.XXXXXX")
 _SCRIPT_TEMP_FILES_TO_CLEAN[${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]}]="$YTDLP_STDOUT_CAPTURE_FILE"
 _SCRIPT_TEMP_FILES_TO_CLEAN[${#_SCRIPT_TEMP_FILES_TO_CLEAN[@]}]="$YTDLP_STDERR_CAPTURE_FILE"
 
@@ -363,7 +363,7 @@ if [[ "$YTDLP_EXIT_CODE" -eq 0 ]] || \
     log_user_progress "YouTube" "Locating downloaded file in '${LOCAL_DIR_YOUTUBE}'..."
     if [[ -d "${LOCAL_DIR_YOUTUBE}" ]]; then
         set +e 
-        potential_file_full_path=$(find "${LOCAL_DIR_YOUTUBE}" -maxdepth 1 -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.webm" \) -print0 2>/dev/null | xargs -0 -r ls -Ft 2>/dev/null | head -n 1 | sed 's/[*@/]$//')
+        potential_file_full_path=$(find "${LOCAL_DIR_YOUTUBE}" -maxdepth 1 -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.webm" \) -print0 2>/dev/null | xargs -0 ls -Ft 2>/dev/null | head -n 1 | sed 's/[*@/]$//')
         find_ls_exit_code=$? 
         set -e
 

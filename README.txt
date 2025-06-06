@@ -50,46 +50,84 @@ installation required.
 
 INSTALLATION
 ------------
-To begin, open the Terminal app, you can copy and paste (Cmd+C and Cmd+V) the following commands one at a time.
+To get started with JellyMac, open your Terminal app (or shell of choice). 
+You can copy and paste (Cmd+C and Cmd+V) the following commands one at
+a time.
 
-Step 1: Install Homebrew and Git (visit brew.sh for instructions):
+Step 1: Install Homebrew (if you don't have it) and Git
+
+First, install Homebrew by pasting this command and
+following the on-screen instructions:
 
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+Then, install Git using Homebrew:
+
     brew install git
 
-Step 2: Clone and setup JellyMac:
+Step 2: Download and Prepare JellyMac
+
+Clone the JellyMac repository from GitHub:
 
     git clone https://github.com/Mtn-Man/JellyMac.git JellyMac
-    cd JellyMac
-    chmod +x jellymac.sh bin/*.sh
 
-Step 3: Copy the configuration file:
+Navigate into the JellyMac directory and make the
+necessary scripts executable:
 
-    cd lib
-    cp jellymac_config.example.sh jellymac_config.sh
-    cd ..
+    cd JellyMac && chmod +x jellymac.sh bin/*.sh
 
-Step 4: Run JellyMac - that's it!
+Step 3: Run JellyMac for the First Time
+
+Now, start JellyMac:
 
     ./jellymac.sh
 
-The interactive setup wizard takes over from here:
-• Guides you through installing any missing dependencies (yt-dlp, transmission-cli, ffmpeg, etc.)
-• Creates all necessary folders with sensible defaults
-• Configures Transmission for magnet link automation
-• Guides you through any optional settings
+On its first run, JellyMac initiates an interactive setup
+wizard. This wizard will:
+• Offer to create a default configuration file
+  (lib/jellymac_config.sh) if it's missing.
+• Guide you through installing any missing helper programs
+  (like yt-dlp, transmission-cli, ffmpeg, or flock).
+• Create necessary operational folders with sensible
+  defaults.
+• Offer to automatically configure Transmission for
+  seamless magnet link automation.
 
-Zero-Config: 
-Default settings work perfectly for local media storage and organization.
-Your movies go to ~/Movies/Movies, TV shows to ~/Movies/Shows, 
-your Drop folder is ~/Downloads/JellyDrop. Just press Enter through the setup 
-and you're ready to go!
+Step 4: Customize Your Configuration (Recommended)
 
-Network Setup (Optional):You can easily configure network 
-shares by editing the config file to add their paths before running the script.
+After the initial setup, JellyMac creates
+lib/jellymac_config.sh.
+It's highly recommended to edit this file to match your
+setup, especially if you use a media server or network
+storage.
 
+To edit:
+    1.  Navigate to the lib folder inside your JellyMac
+        directory.
+    2. Open lib/jellymac_config.sh with a text editor
+        (e.g., nano, TextEdit).
+    3. Key paths to update include:
+        - DEST_DIR_MOVIES: Your main movies library folder.
+        - DEST_DIR_SHOWS: Your main TV shows library folder.
+        - DEST_DIR_YOUTUBE: Where YouTube downloads should go.
+        - DROP_FOLDER: The folder JellyMac will monitor.
+        Refer to Getting_Started.txt for more info and
+        Configuration_Guide.txt for details on all options.
+    4. Save the file. JellyMac will use these new settings
+       the next time it runs or processes media.
 
-When finished using JellyMac, just press control+c to quit, or simply close your terminal.
+Zero-Config (for Local Use):
+If you're using JellyMac only for local media on your Mac and
+don't have a separate media server, the default paths created
+by the setup wizard often work out of the box:
+• Movies are typically organized in ~/Movies/Movies.
+• TV shows in ~/Movies/Shows.
+• The drop folder is usually ~/Downloads/JellyDrop.
+You can often press Enter through most setup prompts for this
+scenario.
+
+When finished using JellyMac, press Ctrl+C in the Terminal
+window where it's running, or simply close the Terminal window.
 
 
 REQUIREMENTS
@@ -127,9 +165,11 @@ ROADMAP
 -------
 Planned features include:
 
-• Season pack handling - Automatically extract and organize multi-episode archives into the correct structure
-• Movie series detection - Intelligently group franchises and sequels into collection folders
-• Better title cleaning - Enhanced parsing to handle more complex release naming patterns
+• Movie/TV Show season/collection/pack handling - Automatically extract and organize multi-episode archives into the correct structure
+• YouTube playlist support - Download and organize entire playlists automatically
+• Enhanced metadata extraction - Better parsing and organization of media information
+• Improved file recognition and filtering - More accurate identification of media types
+• GUI version - User-friendly graphical interface for configuration and monitoring
 • Archive extraction - Seamlessly unpack compressed media files without manual intervention
 
 Feature requests and bug reports welcome!
