@@ -154,10 +154,10 @@ INSTALLATION
          DEST_DIR_SHOWS="$HOME/Movies/Shows"
          DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"
          
-       To edit the configuration file:
+       If you chose not to do so in setup, to edit the configuration file:
 
          1. Open Finder
-         2. Press Cmd+Shift+H to open your Home folder
+         2. Press Cmd+Shift+H to open your Home folder (or Go → Home)
          3. Navigate to JellyMac → lib folder
          4. Double-click jellymac_config.sh to open in TextEdit
          5. Find and edit the file paths to match your setup
@@ -165,7 +165,7 @@ INSTALLATION
 
   3. Configure Jellyfin integration for auto library syncing (optional):
 
-         JELLYFIN_SERVER="http://your-server-ip:8096"
+         JELLYFIN_SERVER="http://your-server-ip:8096" (usually looks like 192.168.0.100:8096 or similar)
          JELLYFIN_API_KEY="your-jellyfin-api-key"
        
        To get your Jellyfin API key:
@@ -187,16 +187,16 @@ INSTALLATION
 
   4. Run JellyMac:
          
-         cd ~/JellyMac
-
-         ./jellymac.sh
+         cd ~/JellyMac && ./jellymac.sh
 
 The interactive setup wizard will:
 
+• Offer to copy the example configuration file if you have not already done so
+• Offer to open the new config file so you can make changes right away
 • Check for missing dependencies and offer to install them
-• Validate your configured paths and create missing directories
+• Validate your configured paths and create missing directories if necessary
 • Set up Transmission service for magnet links
-• Offer automatic Transmission download location configuration
+• Offer automatic Transmission download location configuration enabling full automation
 
 
 FIRST RUN EXPERIENCE
@@ -242,10 +242,11 @@ DAILY USAGE
 Once setup is complete:
 
   Starting JellyMac:
-       cd ~/JellyMac
-       ./jellymac.sh
 
+       cd ~/JellyMac && ./jellymac.sh
+      
   Using JellyMac:
+
        - Drop media files into your configured DROP_FOLDER
        - Copy YouTube URLs to your clipboard
        - Copy magnet links to your clipboard
@@ -253,6 +254,7 @@ Once setup is complete:
        - Check macOS notifications (if enabled)
 
   Stopping JellyMac:
+
        Press Ctrl+C in the Terminal window
 
 PLAYBACK SUGGESTIONS
@@ -262,7 +264,7 @@ For local video playback, the default QuickTime Player has limited support
 for modern video codecs (e.g. HEVC/H.265), which will cause playback issues
 with JellyMac's YouTube downloads.
 
-Instead, we recommend using Jellyfin Server to host your media locally,
+Instead, we recommend using Jellyfin Server to host your media locally (or remotely on another computer),
 then play back in any web browser, and on any computer on your network.
 
 Find out more: https://jellyfin.org
@@ -271,8 +273,8 @@ Alternatively, there are many reliable, free video players for macOS,
 including:
 
   - Infuse: https://firecore.com/infuse
-  - IINA:   https://www.iina.tv/
-  - VLC:    https://www.videolan.org/vlc/
+  - IINA:   https://www.iina.tv/               or      brew install --cask iina
+  - VLC:    https://www.videolan.org/vlc/      or      brew install --cask vlc
 
 In a pinch, Google Chrome can also play many media formats, if you already have that installed.
 
@@ -316,7 +318,7 @@ TROUBLESHOOTING
            * Check ownership/permissions: `ls -la [directory]`
            * Fix (example): 
            
-           chmod u+rwx [directory]             (Gives your user read, write, execute)
+           chmod u+rwx [directory]             (Gives your user account read, write, execute)
 
        - Network Share Issues:
            * Ensure shares are mounted before starting.
