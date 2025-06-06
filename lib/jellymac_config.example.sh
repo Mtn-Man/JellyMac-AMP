@@ -40,12 +40,13 @@ LOG_DIR="${JELLYMAC_PROJECT_ROOT}/logs"
 AUTO_INSTALL_DEPENDENCIES="false"
 MAIN_LOOP_SLEEP_INTERVAL=2                               # Seconds between input checks
 AUTO_CREATE_MISSING_DIRS="true"
-MAX_CONCURRENT_PROCESSORS="2"                            # Maximum number of concurrent media processors (1-4 recoommended for most systems)
+MAX_CONCURRENT_PROCESSORS="2"  
+ERROR_DIR="${JELLYMAC_PROJECT_ROOT}/_error_quarantine_files"
+STATE_DIR="${JELLYMAC_PROJECT_ROOT}/.state"                          # Maximum number of concurrent media processors (1-4 recoommended for most systems)
 
 #==============================================================================
 # USER INTERFACE
 #==============================================================================
-# Controls visual and audio feedback during operation
 
 ENABLE_DESKTOP_NOTIFICATIONS="true"                            # Show macOS notifications
 SOUND_INPUT_DETECTED_FILE="/System/Library/Sounds/Funk.aiff"   # Sound for new input (links or files detected)
@@ -63,11 +64,29 @@ LOG_RETENTION_DAYS="7"                                   # Days to keep old log 
 HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"
 
 #==============================================================================
-# ERROR HANDLING & STATE
+# YOUTUBE PROCESSING
 #==============================================================================
 
-ERROR_DIR="${JELLYMAC_PROJECT_ROOT}/_error_quarantine_files"
-STATE_DIR="${JELLYMAC_PROJECT_ROOT}/.state"
+LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"                            # Temporary staging download folder for YouTube videos
+DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
+COOKIES_ENABLED="false"                                                               # Enable for age-restricted/private videos
+COOKIES_FILE="/path/to/your/cookies.txt"                                              # Export from browser if cookies enabled
+YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (default is 1080p for quality/file size balance) (configure to your needs)
+# For older macOS versions without good HEVC hardware decoding, consider changing "[vcodec=hevc]" above to the older standard "[vcodec=h264]"
+YTDLP_OPTS=(                                                                          
+    --no-playlist                    # Download single video only, not entire playlist
+    --merge-output-format mp4        # Combine video/audio into .mp4 container
+    --embed-metadata                 # Include video title, description in file
+    --embed-thumbnail                # Embed video thumbnail as cover art
+    --restrict-filenames             # Use only safe characters in filenames
+ #  --sponsorblock-remove all        # Remove sponsored segments automatically
+ #  --write-subs                     # Download subtitles if available (creates separate .srt or .vtt files)
+ #  --sub-langs "en.*,en,es"         # Preferred subtitle languages (e.g., all English variants, then Spanish)
+ #  --write-auto-subs                # Download automatic (generated) subtitles if no human-made ones are available
+ #  --convert-subs srt               # Convert subtitles to SRT format if downloaded in another format
+ #  --ppa "EmbedSubtitle"            # Attempts to embed downloaded subtitles into the file (experimental for mp4, works well with mkv)
+)
+# Add custom yt-dlp options above. See: https://github.com/yt-dlp/yt-dlp#usage-and-options
 
 #==============================================================================
 # MEDIA PROCESSING
@@ -112,29 +131,3 @@ TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"     # Path to tr
 TRANSMISSION_REMOTE_HOST="localhost:9091"                           # Host:port of transmission daemon
 TRANSMISSION_REMOTE_AUTH=""                                         # Leave blank if no auth required
                                                                     # Format: "username:password" if needed
-
-#==============================================================================
-# YOUTUBE PROCESSING
-#==============================================================================
-
-LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"     # Temporary staging download folder for YouTube videos
-DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
-COOKIES_ENABLED="false"                                        # Enable for age-restricted/private videos
-COOKIES_FILE="/path/to/your/cookies.txt"                       # Export from browser if cookies enabled
-YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (good quality/file size balance)
-# For older macOS versions without good HEVC hardware decoding, consider changing "[vcodec=hevc]" above to "[vcodec=h264]" or similar.
-YTDLP_OPTS=(                                                                          
-    --no-playlist                    # Download single video only, not entire playlist
-    --merge-output-format mp4        # Combine video/audio into .mp4 container
-    --embed-metadata                 # Include video title, description in file
-    --embed-thumbnail                # Embed video thumbnail as cover art
-    --restrict-filenames             # Use only safe characters in filenames
- #  --sponsorblock-remove all        # Remove sponsored segments automatically
- #  --write-subs                     # Download subtitles if available (creates separate .srt or .vtt files)
- #  --sub-langs "en.*,en,es"         # Preferred subtitle languages (e.g., all English variants, then Spanish)
- #  --write-auto-subs                # Download automatic (generated) subtitles if no human-made ones are available
- #  --convert-subs srt               # Convert subtitles to SRT format if downloaded in another format
- #  --ppa "EmbedSubtitle"            # Attempts to embed downloaded subtitles into the file (experimental for mp4, works well with mkv)
-)
-# Add custom yt-dlp options above. See: https://github.com/yt-dlp/yt-dlp#usage-and-options
-

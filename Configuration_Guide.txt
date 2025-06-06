@@ -538,8 +538,8 @@ if installed differently)
 FFMPEG_PATH
 Purpose: Override path to ffmpeg executable.
 Example: "/opt/homebrew/bin/ffmpeg"
-Note: ffmpeg is not actively used by the current core
-scripts provided but might be useful for future custom
-scripts or planned features.
+Note: ffmpeg is used by yt-dlp for various metadata and codec interactions
+If it is installed in a different location on your
+system, you can specify it with this value
 
 =================================================================

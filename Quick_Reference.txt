@@ -10,8 +10,8 @@ COMMON TASKS
 -----------
 1. Start JellyMac:
    Open Terminal, type:
-   cd ~/JellyMac
-   ./jellymac.sh
+
+   cd ~/JellyMac && ./jellymac.sh
 
 2. Stop JellyMac:
    Press Ctrl+C in the Terminal window
