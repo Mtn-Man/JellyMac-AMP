@@ -350,7 +350,10 @@ _ACTIVE_PROCESSOR_INFO_STRING=""
 LAST_CLIPBOARD_CONTENT_YOUTUBE=""
 LAST_CLIPBOARD_CONTENT_MAGNET=""
 PBPASTE_CMD="" 
-_SHUTDOWN_IN_PROGRESS="" 
+_SHUTDOWN_IN_PROGRESS=""
+
+# --- Torrent Cleanup Tracking ---
+last_torrent_cleanup=0                    # Timestamp of last cleanup (Unix timestamp) 
 
 #==============================================================================
 # PROCESS MANAGEMENT FUNCTIONS
@@ -859,6 +862,16 @@ log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or me
 log_user_status "JellyMac" "(Press Ctrl+C to exit any time)"
 while true; do
     manage_active_processors    
+    
+    # Time-based torrent cleanup (every 3 minutes, independent of main loop timing)
+    if [[ "${TRANSMISSION_AUTO_CLEANUP:-false}" == "true" ]]; then
+        current_time=$(date +%s)
+        if [[ $((current_time - last_torrent_cleanup)) -ge 180 ]]; then
+            cleanup_completed_torrents "JellyMac"
+            last_torrent_cleanup=$current_time
+        fi
+    fi
+    
     if [[ -n "$PBPASTE_CMD" ]]; then 
         _check_clipboard_youtube; 
         _check_clipboard_magnet; 

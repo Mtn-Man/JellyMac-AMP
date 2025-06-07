@@ -928,6 +928,69 @@ send_desktop_notification() {
 }
 
 #==============================================================================
+# Function: cleanup_completed_torrents
+# Description: Removes all completed downloads (100%) from Transmission list
+# Parameters:
+#   $1: (Optional) Log prefix for logging messages. Defaults to "Utils"
+# Returns: 0 on success, 1 on failure
+# Side Effects: Removes completed torrents from Transmission daemon
+# Notes: Uses configuration from jellymac_config.sh (TRANSMISSION_AUTO_CLEANUP, etc.)
+#==============================================================================
+cleanup_completed_torrents() {
+    local log_prefix="${1:-Utils}"
+    
+    # Check if cleanup is enabled and torrent features are active
+    if [[ "${TRANSMISSION_AUTO_CLEANUP:-false}" != "true" ]] || 
+       [[ "${ENABLE_TORRENT_AUTOMATION:-false}" != "true" ]]; then
+        log_debug_event "$log_prefix" "Torrent cleanup disabled or torrent automation not enabled"
+        return 0
+    fi
+    
+    log_debug_event "$log_prefix" "🧹 Removing completed downloads from Transmission..."
+    
+    # Use existing configuration variables
+    local transmission_cli="${TORRENT_CLIENT_CLI_PATH:-transmission-remote}"
+    local transmission_host="${TRANSMISSION_REMOTE_HOST:-localhost:9091}"
+    
+    # Find the actual executable
+    local transmission_exe
+    transmission_exe=$(find_executable "transmission-remote" "$transmission_cli")
+    
+    # Build auth arguments if needed
+    local auth_args=()
+    [[ -n "${TRANSMISSION_REMOTE_AUTH:-}" ]] && auth_args+=("--auth" "$TRANSMISSION_REMOTE_AUTH")
+    
+    # Test connection to Transmission daemon
+    if ! "$transmission_exe" "$transmission_host" "${auth_args[@]}" --list >/dev/null 2>&1; then
+        log_debug_event "$log_prefix" "Cannot connect to Transmission daemon - skipping cleanup"
+        return 1
+    fi
+    
+    local cleanup_count=0
+    "$transmission_exe" "$transmission_host" "${auth_args[@]}" --list | \
+    awk 'NR > 1 && $2 == "100%" && $1 != "Sum:" && $1 ~ /^[0-9]+$/ { print $1 }' | \
+    while read -r torrent_id; do
+        if [[ -n "$torrent_id" ]]; then
+            log_debug_event "$log_prefix" "🗑️  Removing completed download (ID: $torrent_id)"
+            if "$transmission_exe" "$transmission_host" "${auth_args[@]}" --torrent "$torrent_id" --remove >/dev/null 2>&1; then
+                cleanup_count=$((cleanup_count + 1))
+                log_debug_event "$log_prefix" "✅ Successfully removed torrent ID: $torrent_id"
+            else
+                log_debug_event "$log_prefix" "⚠️  Failed to remove torrent ID: $torrent_id (may have been removed already)"
+            fi
+        fi
+    done
+    
+    if [[ $cleanup_count -gt 0 ]]; then
+        log_debug_event "$log_prefix" "🧹 Torrent cleanup completed - removed $cleanup_count completed downloads"
+    else
+        log_debug_event "$log_prefix" "🧹 Torrent cleanup completed - no completed downloads found"
+    fi
+    
+    return 0
+}
+
+#==============================================================================
 # Function: _cleanup_common_utils_temp_files
 # Description: Cleans up any temporary files created by functions in this script.
 # Parameters: None.

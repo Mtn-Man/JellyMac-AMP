@@ -131,3 +131,4 @@ TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"     # Path to tr
 TRANSMISSION_REMOTE_HOST="localhost:9091"                           # Host:port of transmission daemon
 TRANSMISSION_REMOTE_AUTH=""                                         # Leave blank if no auth required
                                                                     # Format: "username:password" if needed
+TRANSMISSION_AUTO_CLEANUP="true"                                    # Remove completed downloads from Transmission list
