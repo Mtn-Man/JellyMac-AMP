@@ -12,7 +12,7 @@
 # - Can fully automate the media acquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: v0.2.2
+# Version: v0.2.3
 # Last Updated: 2025-06-08
 # License: MIT Open Source
 
@@ -151,6 +151,16 @@ case "$(echo "${LOG_LEVEL:-INFO}" | tr '[:lower:]' '[:upper:]')" in
 esac
 export SCRIPT_CURRENT_LOG_LEVEL
 
+# Export other logging-related config variables for subshells (e.g., bin/ scripts)
+# These are read from jellymac_config.sh and used by exported logging functions.
+export LOG_ROTATION_ENABLED
+export LOG_DIR
+export LOG_FILE_BASENAME
+export LOG_RETENTION_DAYS
+# Note: CURRENT_LOG_FILE_PATH and LAST_LOG_DATE_CHECKED are managed by the exported 
+# _ensure_log_file_updated function and will be handled correctly within each 
+# subshell's context by that function when it's called.
+
 # 4. Common Utilities (provides play_sound_notification, find_executable, etc.)
 # shellcheck source=lib/common_utils.sh
 # shellcheck disable=SC1091
@@ -210,6 +220,7 @@ _delete_old_logs() {
         find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -delete
     fi
 }
+export -f _delete_old_logs
 #=================================================================
 
 #==============================================================================
@@ -240,6 +251,7 @@ _ensure_log_file_updated() {
         _delete_old_logs
     fi
 }
+export -f _ensure_log_file_updated
 _ensure_log_file_updated # Initial setup call
 
 #==============================================================================
@@ -261,15 +273,23 @@ _log_to_current_file() {
     local prefix="$2" 
     # shellcheck disable=SC2317
     local message="$3"
-    # Only log if file logging is enabled and path is valid
+
+    # Only log if file logging is enabled
     # shellcheck disable=SC2317
-    if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$CURRENT_LOG_FILE_PATH" ]]; then
+    if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" ]]; then
         return
     fi
     
     # Ensure log file path is current (handles rotation)
+    # This function sets CURRENT_LOG_FILE_PATH in the current shell
     # shellcheck disable=SC2317
     _ensure_log_file_updated
+    
+    # Now check if CURRENT_LOG_FILE_PATH was successfully set by _ensure_log_file_updated
+    # shellcheck disable=SC2317
+    if [[ -z "$CURRENT_LOG_FILE_PATH" ]]; then
+        return
+    fi
     
     # Convert numeric level to severity label for file
     # shellcheck disable=SC2317
@@ -305,6 +325,7 @@ _log_to_current_file() {
         echo "$file_log_message" >> "$CURRENT_LOG_FILE_PATH"
     fi
 }
+export -f _log_to_current_file
 
 # Define local log function for jellymac.sh using the modern emoji-based system
 # shellcheck disable=SC2317
@@ -603,6 +624,7 @@ _check_clipboard_youtube() {
                 
                 # Fork background monitoring loop
                 {
+                    local yt_loop_last_torrent_cleanup=0 # Initialize a specific LOCAL timer for this background subshell
                     while [[ "$_YOUTUBE_PROCESSING_ACTIVE" == "true" ]]; do
                         manage_active_processors
                         
@@ -613,12 +635,13 @@ _check_clipboard_youtube() {
                         fi
                         process_drop_folder
                         
-                        # Time-based torrent cleanup
+                        # Time-based torrent cleanup (INDEPENDENT for this background task)
                         if [[ "${TRANSMISSION_AUTO_CLEANUP:-false}" == "true" ]]; then
                             current_time=$(date +%s)
-                            if [[ $((current_time - last_torrent_cleanup)) -ge 180 ]]; then
-                                cleanup_completed_torrents "JellyMac"
-                                last_torrent_cleanup=$current_time
+                            # This 'yt_loop_last_torrent_cleanup' is local to this subshell block
+                            if [[ $((current_time - yt_loop_last_torrent_cleanup)) -ge 180 ]]; then
+                                cleanup_completed_torrents "JellyMac_YT_Monitor" # Differentiated log source
+                                yt_loop_last_torrent_cleanup=$current_time # Modifies the local variable
                             fi
                         fi
                         
@@ -816,7 +839,7 @@ _acquire_lock  # Ensure only one instance of JellyMac runs at a time
 show_startup_banner  # Call the startup banner function if enabled
 
 log_user_info "JellyMac" "🚀 JellyMac Starting..."
-log_user_info "JellyMac" "Version: v0.2.2 (2025-06-08)"
+log_user_info "JellyMac" "Version: v0.2.3 ($(date +'%Y-%m-%d'))"
 log_user_info "JellyMac" "JellyMac location: $JELLYMAC_PROJECT_ROOT"
 log_debug_event "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
@@ -920,7 +943,7 @@ fi
 
 # --- Log Configuration Summary ---
 log_user_info "JellyMac" ""
-log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.2) ---"
+log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.3) ---"
 log_user_info "JellyMac" "   Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" ""
 log_user_info "JellyMac" "  Media Destinations:"

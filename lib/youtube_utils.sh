@@ -10,6 +10,18 @@
 # and its sourced libraries (common_utils.sh, logging_utils.sh, etc.).
 #==============================================================================
 
+# Ensure logging_utils.sh is sourced, as this script may use log_*_event functions
+if ! command -v log_debug_event &>/dev/null; then # Using log_debug_event as a representative function
+    _YOUTUBE_UTILS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+    if [[ -f "${_YOUTUBE_UTILS_LIB_DIR}/logging_utils.sh" ]]; then
+        # shellcheck source=logging_utils.sh
+        # shellcheck disable=SC1091
+        source "${_YOUTUBE_UTILS_LIB_DIR}/logging_utils.sh"
+    else
+        echo "WARNING: youtube_utils.sh: logging_utils.sh not found at ${_YOUTUBE_UTILS_LIB_DIR}/logging_utils.sh. Logging functions may be unavailable if not already sourced." >&2
+    fi
+fi
+
 # --- YouTube Queue Management Functions ---
 
 # Function: _add_youtube_to_queue

@@ -16,20 +16,24 @@ LIB_DIR="$(cd "${SCRIPT_DIR_PROCESSOR}/../lib" && pwd)"
 
 # --- Source Libraries ---
 # shellcheck source=../lib/logging_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/logging_utils.sh"
 # shellcheck source=../lib/jellymac_config.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/jellymac_config.sh"
 # shellcheck source=../lib/media_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/media_utils.sh"
 # shellcheck source=../lib/jellyfin_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/jellyfin_utils.sh"
 # shellcheck source=../lib/common_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/common_utils.sh" # Provides find_executable, quarantine_item, play_sound_notification etc.
 
 # --- Log Level & Prefix Initialization (after config is sourced) ---
-# Set script log level from global configuration
-# shellcheck disable=SC2034  # Variable used by logging functions in sourced files
-SCRIPT_CURRENT_LOG_LEVEL=${JELLYMAC_LOG_LEVEL:-$LOG_LEVEL_INFO}
+
+# The SCRIPT_CURRENT_LOG_LEVEL (and _log_to_current_file function) will be inherited from the parent (jellymac.sh)
 
 # === Temporary File Cleanup Trap ===
 _PROCESS_MEDIA_ITEM_TEMP_FILES_TO_CLEAN=()

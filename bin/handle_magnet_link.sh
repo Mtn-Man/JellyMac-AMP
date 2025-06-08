@@ -66,8 +66,7 @@ TORRENT_CLIENT_CLI_PATH="${TORRENT_CLIENT_CLI_PATH:-}"
 source "${LIB_DIR}/common_utils.sh" # For find_executable, record_transfer_to_history, play_sound_notification
 
 # --- Log Level & Prefix Initialization ---
-# SCRIPT_CURRENT_LOG_LEVEL is set by logging_utils.sh based on LOG_LEVEL from config
-# Use standard logging functions with "Torrent" module for 🧲 emoji branding
+# The SCRIPT_CURRENT_LOG_LEVEL (and _log_to_current_file function) will be inherited from the parent (jellymac.sh)
 
 #==============================================================================
 # MAGNET LINK PROCESSING FUNCTIONS

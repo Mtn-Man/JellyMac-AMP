@@ -371,6 +371,16 @@ How to get: Typically exported from your web browser
 using a browser extension designed for exporting cookies
 (search for "cookies.txt export" for your browser).
 
+YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO
+Purpose: Determines if each downloaded YouTube video is
+placed into its own subdirectory within DEST_DIR_YOUTUBE,
+or if files are placed loosely in DEST_DIR_YOUTUBE.
+The subfolder name will be derived from the video's title.
+Values:
+- "true": Create a subfolder for each video.
+- "false": Place video files directly into DEST_DIR_YOUTUBE (default).
+Default: "false"
+
 YTDLP_FORMAT
 Purpose: Specifies the preferred video and audio
 format/quality string for yt-dlp to download.

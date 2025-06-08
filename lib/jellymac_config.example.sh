@@ -71,6 +71,7 @@ LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"                      
 DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
 COOKIES_ENABLED="false"                                                               # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                                              # Export from browser if cookies enabled
+YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO="false"                                            # Create subfolder for each video (true/false)
 YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (default is 1080p for quality/file size balance) (configure to your needs)
 # For older macOS versions without good HEVC hardware decoding, consider changing "[vcodec=hevc]" above to the older standard "[vcodec=h264]"
 YTDLP_OPTS=(                                                                          

@@ -967,19 +967,19 @@ cleanup_completed_torrents() {
     fi
     
     local cleanup_count=0
-    "$transmission_exe" "$transmission_host" "${auth_args[@]}" --list | \
-    awk 'NR > 1 && $2 == "100%" && $1 != "Sum:" && $1 ~ /^[0-9]+$/ { print $1 }' | \
-    while read -r torrent_id; do
+    # Use process substitution to run the while loop in the current shell
+    while IFS= read -r torrent_id; do
         if [[ -n "$torrent_id" ]]; then
             log_debug_event "$log_prefix" "🗑️  Removing completed download (ID: $torrent_id)"
             if "$transmission_exe" "$transmission_host" "${auth_args[@]}" --torrent "$torrent_id" --remove >/dev/null 2>&1; then
-                cleanup_count=$((cleanup_count + 1))
+                cleanup_count=$((cleanup_count + 1)) # Modification is now in the current shell
                 log_debug_event "$log_prefix" "✅ Successfully removed torrent ID: $torrent_id"
             else
                 log_debug_event "$log_prefix" "⚠️  Failed to remove torrent ID: $torrent_id (may have been removed already)"
             fi
         fi
-    done
+    done < <("$transmission_exe" "$transmission_host" "${auth_args[@]}" --list | \
+             awk 'NR > 1 && $2 == "100%" && $1 != "Sum:" && $1 ~ /^[0-9]+$/ { print $1 }')
     
     if [[ $cleanup_count -gt 0 ]]; then
         log_debug_event "$log_prefix" "🧹 Torrent cleanup completed - removed $cleanup_count completed downloads"

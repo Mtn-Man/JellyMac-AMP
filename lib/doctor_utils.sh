@@ -7,6 +7,23 @@
 # logging_utils.sh, combined.conf.sh, and common_utils.sh
 # and SCRIPT_CURRENT_LOG_LEVEL is set.
 
+# Ensure logging_utils.sh is sourced, as this script may use log_*_event functions
+if ! command -v log_debug_event &>/dev/null; then # Using log_debug_event as a representative function
+    _DOCTOR_UTILS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+    if [[ -f "${_DOCTOR_UTILS_LIB_DIR}/logging_utils.sh" ]]; then
+        # shellcheck source=logging_utils.sh
+        # shellcheck disable=SC1091
+        source "${_DOCTOR_UTILS_LIB_DIR}/logging_utils.sh"
+    else
+        # If logging_utils.sh is not found here, we rely on jellymac.sh having sourced it.
+        # If not, log_*_event calls will fail, indicating a setup issue.
+        echo "WARNING: doctor_utils.sh: logging_utils.sh not found at ${_DOCTOR_UTILS_LIB_DIR}/logging_utils.sh. Logging functions may be unavailable if not already sourced." >&2
+    fi
+    # If log_debug_event is still not found after this attempt, 
+    # it implies a more significant issue with sourcing order or file availability,
+    # which should be handled by the main script or result in command-not-found errors for log calls.
+fi
+
 # Function: normalize_user_response
 # Description: Normalizes user input for yes/no prompts
 # Parameters:

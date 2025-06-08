@@ -62,7 +62,8 @@ source "${LIB_DIR}/jellyfin_utils.sh"
 
 # Set script log level from global configuration
 # shellcheck disable=SC2034  # Variable used by logging functions in sourced files
-SCRIPT_CURRENT_LOG_LEVEL=${JELLYMAC_LOG_LEVEL:-$LOG_LEVEL_INFO} 
+# SCRIPT_CURRENT_LOG_LEVEL=${JELLYMAC_LOG_LEVEL:-$LOG_LEVEL_INFO} # Commented out: SCRIPT_CURRENT_LOG_LEVEL is now inherited from jellymac.sh
+# The SCRIPT_CURRENT_LOG_LEVEL (and _log_to_current_file function) will be inherited from the parent (jellymac.sh)
 
 #==============================================================================
 # ARGUMENT VALIDATION AND SETUP
@@ -534,11 +535,19 @@ fi
 # Derive the desired *final* subdirectory name from the cleaned and truncated filename
 desired_final_subdir_name="${final_local_filename%.*}" # Removes extension, e.g., "Tip Line - Microsoft Recall Bypass..."
 
-# Construct the full path for the final destination DIRECTORY
-final_destination_dir="${DEST_DIR_YOUTUBE}/${desired_final_subdir_name}"
-
-# Construct the full path for the final destination FILE
-final_destination_path_for_file="${final_destination_dir}/${final_local_filename}"
+# Construct the full path for the final destination DIRECTORY and FILE
+# based on YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO setting
+if [[ "${YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO:-false}" == "true" ]]; then
+    # Create a subfolder for the video
+    final_destination_dir="${DEST_DIR_YOUTUBE}/${desired_final_subdir_name}"
+    final_destination_path_for_file="${final_destination_dir}/${final_local_filename}"
+    log_debug_event "YouTube" "Subfolder per video enabled. Final destination dir: $final_destination_dir"
+else
+    # Place video loosely in DEST_DIR_YOUTUBE
+    final_destination_dir="${DEST_DIR_YOUTUBE}"
+    final_destination_path_for_file="${final_destination_dir}/${final_local_filename}"
+    log_debug_event "YouTube" "Subfolder per video disabled. Final destination dir: $final_destination_dir"
+fi
 
 # Calculate file size for disk space check (using the actual file to be transferred)
 file_size_bytes=$(stat -f "%z" "$DOWNLOADED_FILE_FULL_PATH" 2>/dev/null || echo "0")

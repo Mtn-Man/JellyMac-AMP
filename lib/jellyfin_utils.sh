@@ -6,6 +6,18 @@
 # Assumes JELLYFIN_SERVER, JELLYFIN_API_KEY are available from sourced config.
 # Assumes 'curl' is available (checked by health check in main script).
 
+# Ensure logging_utils.sh is sourced
+if ! command -v log_debug_event &>/dev/null; then # Using log_debug_event as a representative function
+    _JELLYFIN_UTILS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+    if [[ -f "${_JELLYFIN_UTILS_LIB_DIR}/logging_utils.sh" ]]; then
+        # shellcheck source=logging_utils.sh
+        # shellcheck disable=SC1091
+        source "${_JELLYFIN_UTILS_LIB_DIR}/logging_utils.sh"
+    else
+        echo "WARNING: jellyfin_utils.sh: logging_utils.sh not found at ${_JELLYFIN_UTILS_LIB_DIR}/logging_utils.sh. Logging functions may be unavailable if not already sourced." >&2
+    fi
+fi
+
 #==============================================================================
 # JELLYFIN API INTEGRATION FUNCTIONS
 #==============================================================================
