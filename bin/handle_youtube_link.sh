@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JellyMac_AMP/bin/handle_youtube_link.sh
+# JellyMac/bin/handle_youtube_link.sh
 # Handles downloading a YouTube video given a URL.
 # Attempts to find the newest video file if yt-dlp exits successfully or hits max-downloads.
 # Captures both stdout and stderr for more robust message checking, while showing live progress.
@@ -48,12 +48,16 @@ trap _cleanup_script_temp_files EXIT SIGINT SIGTERM
 
 # --- Source Libraries ---
 # shellcheck source=../lib/logging_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/logging_utils.sh"
 # shellcheck source=../lib/jellymac_config.sh 
+# shellcheck disable=SC1091
 source "${LIB_DIR}/jellymac_config.sh" 
 # shellcheck source=../lib/common_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/common_utils.sh" 
 # shellcheck source=../lib/jellyfin_utils.sh
+# shellcheck disable=SC1091
 source "${LIB_DIR}/jellyfin_utils.sh" 
 
 # Set script log level from global configuration
@@ -100,7 +104,7 @@ fi
 # Validate DEST_DIR_YOUTUBE (network-aware)
 if ! validate_network_volume_before_transfer "$DEST_DIR_YOUTUBE" "YouTube"; then
     log_error_event "YouTube" "Network destination unavailable: $DEST_DIR_YOUTUBE"
-    log_user_info "YouTube" "💡 Please reconnect to your media server and try again"
+    log_user_info "YouTube" "💡 Please reconnect to your media server and try again (Finder > Cmd+K)"
         # Add error sound notification
     play_sound_notification "task_error" "YouTube"
     exit 1
@@ -115,7 +119,7 @@ fi
 # DOWNLOAD EXECUTION AND COMMAND PREPARATION
 #==============================================================================
 log_user_progress "YouTube" "Starting download for: ${YOUTUBE_URL:0:70}..."
-YTDLP_OUTPUT_TEMPLATE="${LOCAL_DIR_YOUTUBE}/%(title).200B.%(ext)s"
+YTDLP_OUTPUT_TEMPLATE="${LOCAL_DIR_YOUTUBE}/%(title).200B.%(ext)s" # No initial subdirectory
 
 # Build yt-dlp command arguments array
 declare -a ytdlp_command_args=()
@@ -223,6 +227,7 @@ DOWNLOADED_FILE_FULL_PATH=""
 # SABR (Streaming Audio/Video Browser Rendering) is a YouTube streaming method
 # that can cause download failures. This section handles those errors with
 # progressive retry attempts using different player clients.
+
 if [[ "$YTDLP_EXIT_CODE" -ne 0 ]] && \
    (grep -q "YouTube is forcing SABR streaming" <<< "$ytdlp_stderr_content" || \
     grep -q "Only images are available for download" <<< "$ytdlp_stderr_content" || \
@@ -351,7 +356,7 @@ if [[ "$YTDLP_EXIT_CODE" -eq 0 ]] || \
     # Check if video was already processed (archive hit)
     if (grep -q -i "already been recorded in the archive" <<< "$ytdlp_stderr_content" || grep -q -i "already been recorded in the archive" <<< "$ytdlp_stdout_content"); then
         log_debug_event "YouTube" "yt-dlp (exit $YTDLP_EXIT_CODE) indicated video is already in archive. Stdout: [$ytdlp_stdout_content] Stderr: [$ytdlp_stderr_content]"
-        log_user_info "YouTube" "Video already processed and available. Exiting successfully."
+        log_user_info "YouTube" "Video already processed and available. Skipping to avoid re-processing."
         exit 0 
     fi
     
@@ -359,12 +364,13 @@ if [[ "$YTDLP_EXIT_CODE" -eq 0 ]] || \
         log_debug_event "YouTube" "yt-dlp (exit 101) indicated --max-downloads limit was respected. Will attempt to find downloaded file. Stdout: [$ytdlp_stdout_content] Stderr: [$ytdlp_stderr_content]"
     fi
 
-    # Search for the newest video file in the download directory
+    # Search for the newest video file directly in the LOCAL_DIR_YOUTUBE
     log_user_progress "YouTube" "Locating downloaded file in '${LOCAL_DIR_YOUTUBE}'..."
     if [[ -d "${LOCAL_DIR_YOUTUBE}" ]]; then
-        set +e 
+        set +e
+        # Search only in the top level of LOCAL_DIR_YOUTUBE
         potential_file_full_path=$(find "${LOCAL_DIR_YOUTUBE}" -maxdepth 1 -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.webm" \) -print0 2>/dev/null | xargs -0 ls -Ft 2>/dev/null | head -n 1 | sed 's/[*@/]$//')
-        find_ls_exit_code=$? 
+        find_ls_exit_code=$?
         set -e
 
         if [[ "$find_ls_exit_code" -eq 0 && -n "$potential_file_full_path" && -f "$potential_file_full_path" ]]; then
@@ -474,31 +480,121 @@ fi
 log_user_success "YouTube" "✅ Confirmed media file for processing: '$final_local_filename'"
 
 #==============================================================================
-# FINAL TRANSFER TO DESTINATION
+# FILENAME LENGTH VALIDATION AND TRUNCATION
 #==============================================================================
-final_destination_path="${DEST_DIR_YOUTUBE}/${final_local_filename}" 
+# Ensure filename doesn't exceed macOS filesystem limits
+max_filename_length=200  # Conservative limit for cross-filesystem compatibility
 
-# Calculate file size for disk space check
-file_size_bytes=$(stat -f "%z" "$DOWNLOADED_FILE_FULL_PATH" 2>/dev/null || echo "0") 
-file_size_kb="1" 
-if [[ "$file_size_bytes" =~ ^[0-9]+$ && "$file_size_bytes" -gt 0 ]]; then 
-    file_size_kb=$(( (file_size_bytes + 1023) / 1024 )); 
+if [[ ${#final_local_filename} -gt $max_filename_length ]]; then
+    log_user_progress "YouTube" "Filename too long (${#final_local_filename} chars), truncating to $max_filename_length..."
+    
+    # Extract extension
+    file_ext="${final_local_filename##*.}"
+    filename_no_ext="${final_local_filename%.*}"
+    
+    # Calculate available space for filename (minus extension and dot)
+    available_length=$((max_filename_length - ${#file_ext} - 1))
+    
+    # Truncate filename and add ellipsis indicator
+    if [[ $available_length -gt 3 ]]; then
+        truncated_filename_no_ext="${filename_no_ext:0:$((available_length - 3))}..."
+    else
+        # Fallback for very short available length
+        truncated_filename_no_ext="${filename_no_ext:0:$available_length}"
+    fi
+    
+    # Reconstruct filename
+    truncated_final_local_filename="${truncated_filename_no_ext}.${file_ext}"
+    original_final_local_filename="$final_local_filename"
+    final_local_filename="$truncated_final_local_filename"
+    
+    # Update file paths
+    truncated_final_local_full_path="${download_dir}/${final_local_filename}"
+    
+    # Rename the file to truncated version
+    if mv "$DOWNLOADED_FILE_FULL_PATH" "$truncated_final_local_full_path"; then
+        log_debug_event "YouTube" "Successfully truncated filename: '${original_final_local_filename}' -> '$final_local_filename'"
+        DOWNLOADED_FILE_FULL_PATH="$truncated_final_local_full_path"
+    else
+        log_error_event "YouTube" "Failed to rename file for length truncation. Proceeding with original name."
+        final_local_filename="$original_final_local_filename"
+    fi
+else
+    log_debug_event "YouTube" "Filename length OK (${#final_local_filename} chars, max: $max_filename_length)"
 fi
 
-# Verify sufficient disk space in destination
+#==============================================================================
+# FINAL TRANSFER TO DESTINATION
+#==============================================================================
+# DOWNLOADED_FILE_FULL_PATH at this point is like: /Users/user/JellyMac/.temp_youtube/CleanedAndPossiblyTruncatedFileName.mp4
+# final_local_filename is "CleanedAndPossiblyTruncatedFileName.mp4"
+
+# The variable 'original_temp_subdir_source' is no longer needed as we operate directly on the file.
+
+# Derive the desired *final* subdirectory name from the cleaned and truncated filename
+desired_final_subdir_name="${final_local_filename%.*}" # Removes extension, e.g., "Tip Line - Microsoft Recall Bypass..."
+
+# Construct the full path for the final destination DIRECTORY
+final_destination_dir="${DEST_DIR_YOUTUBE}/${desired_final_subdir_name}"
+
+# Construct the full path for the final destination FILE
+final_destination_path_for_file="${final_destination_dir}/${final_local_filename}"
+
+# Calculate file size for disk space check (using the actual file to be transferred)
+file_size_bytes=$(stat -f "%z" "$DOWNLOADED_FILE_FULL_PATH" 2>/dev/null || echo "0")
+file_size_kb="1"
+if [[ "$file_size_bytes" =~ ^[0-9]+$ && "$file_size_bytes" -gt 0 ]]; then
+    file_size_kb=$(( (file_size_bytes + 1023) / 1024 ));
+fi
+
+# Verify sufficient disk space in the root of DEST_DIR_YOUTUBE (mkdir -p will handle subfolder creation)
 if ! check_available_disk_space "${DEST_DIR_YOUTUBE}" "$file_size_kb"; then
     log_error_event "YouTube" "Insufficient disk space in '$DEST_DIR_YOUTUBE' for '$final_local_filename'."
-    if [[ -f "$DOWNLOADED_FILE_FULL_PATH" ]]; then 
-        quarantine_item "$DOWNLOADED_FILE_FULL_PATH" "No remote disk space for YouTube video" || log_warn_event "YouTube" "Quarantine failed for '$DOWNLOADED_FILE_FULL_PATH'"; 
+    # Quarantine the source file if it exists
+    if [[ -n "$DOWNLOADED_FILE_FULL_PATH" && -f "$DOWNLOADED_FILE_FULL_PATH" ]]; then
+        quarantine_item "$DOWNLOADED_FILE_FULL_PATH" "No remote disk space for YouTube video (pre-transfer)" || log_warn_event "YouTube" "Quarantine failed for '$DOWNLOADED_FILE_FULL_PATH'"
     fi
     exit 1
 fi
 
-# Transfer file to final destination using smart transfer function
-log_user_progress "YouTube" "Moving '$final_local_filename' to '$DEST_DIR_YOUTUBE'..."
-if ! transfer_file_smart "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path" "YouTube"; then
-    log_error_event "YouTube" "Failed transfer: '$DOWNLOADED_FILE_FULL_PATH' to '$final_destination_path'."
-    
+log_user_progress "YouTube" "Preparing to move '$final_local_filename' to '$final_destination_dir'..."
+
+# Create final destination directory (e.g., /Volumes/MEDIA/Content/Tip Line - Microsoft Recall Bypass...)
+if [[ ! -d "$final_destination_dir" ]]; then
+    log_debug_event "YouTube" "Creating final destination directory: $final_destination_dir"
+    if ! mkdir -p "$final_destination_dir"; then
+        log_error_event "YouTube" "Failed to create destination directory: $final_destination_dir. Check permissions."
+        # No need to quarantine here, transfer will fail and handle it if mkdir fails
+        exit 1
+    fi
+fi
+
+# Transfer the single video file
+transfer_failed=false
+if [[ "$final_destination_dir" == /Volumes/* ]]; then
+    # Network destination - use rsync with retry logic for the FILE
+    log_user_progress "YouTube" "Transferring (network) '$final_local_filename' to '$final_destination_dir'..."
+    # Add --remove-source-files to the rsync options
+    if ! rsync_with_network_retry "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path_for_file" "-a --progress --remove-source-files"; then
+        log_error_event "YouTube" "Failed network transfer: '$DOWNLOADED_FILE_FULL_PATH' to '$final_destination_path_for_file'."
+        transfer_failed=true
+    else
+        log_debug_event "YouTube" "Network file transfer successful (source file removal handled by rsync_with_network_retry)."
+    fi
+else
+    # Local destination - use simple mv for the FILE
+    log_user_progress "YouTube" "Transferring (local) '$final_local_filename' to '$final_destination_dir'..."
+    if mv "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path_for_file"; then
+        log_debug_event "YouTube" "Local file transfer successful."
+        # 'mv' removes the source, so no explicit cleanup of DOWNLOADED_FILE_FULL_PATH needed here
+    else
+        transfer_failed=true
+        log_error_event "YouTube" "Failed to move file locally: $DOWNLOADED_FILE_FULL_PATH -> $final_destination_path_for_file"
+    fi
+fi
+
+# Handle transfer failure (if it occurred)
+if [[ "$transfer_failed" == "true" ]]; then
     # Remove from download archive since transfer failed - allows retry on next attempt
     if [[ -n "$DOWNLOAD_ARCHIVE_YOUTUBE" && -f "$DOWNLOAD_ARCHIVE_YOUTUBE" ]]; then
         # Extract video ID from URL for archive removal using Bash 3.2 parameter expansion
@@ -528,15 +624,16 @@ if ! transfer_file_smart "$DOWNLOADED_FILE_FULL_PATH" "$final_destination_path" 
         fi
     fi
     
-    if [[ -f "$DOWNLOADED_FILE_FULL_PATH" ]]; then 
-        quarantine_item "$DOWNLOADED_FILE_FULL_PATH" "rsync_failed_youtube" || log_warn_event "YouTube" "Quarantine failed for '$DOWNLOADED_FILE_FULL_PATH'"; 
+    # Quarantine the source file that failed to transfer
+    if [[ -n "$DOWNLOADED_FILE_FULL_PATH" && -f "$DOWNLOADED_FILE_FULL_PATH" ]]; then
+        quarantine_item "$DOWNLOADED_FILE_FULL_PATH" "transfer_failed_youtube" || log_warn_event "YouTube" "Quarantine failed for '$DOWNLOADED_FILE_FULL_PATH'"
     fi
     exit 1
 fi
-log_user_progress "YouTube" "↪️ Successfully moved to: $final_destination_path"
 
-# Record successful transfer in history
-record_transfer_to_history "YouTube: ${YOUTUBE_URL:0:70}... -> ${final_destination_path}" || log_warn_event "YouTube" "History record failed."
+# Success logging and history
+log_user_progress "YouTube" "↪️ Successfully moved '$final_local_filename' to '$final_destination_dir'"
+record_transfer_to_history "YouTube: ${YOUTUBE_URL:0:70}... -> ${final_destination_path_for_file}" || log_warn_event "YouTube" "History record failed."
 
 #==============================================================================
 # POST-PROCESSING AND NOTIFICATIONS

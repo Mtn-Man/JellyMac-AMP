@@ -204,10 +204,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" == "true" ]]; then # From jellymac_config.sh
       send_desktop_notification "JellyMac - Torrent" "$safe_message"
     fi
-    
-    # Use the centralized sound notification function
-    # play_sound_notification "task_success" "$SCRIPT_NAME"
 fi
+
 # Use the existing TRANSMISSION_REMOTE_HOST config for web interface URL
 log_user_info "Torrent" "📊 Track progress at: http://${TRANSMISSION_REMOTE_HOST}/transmission/web/"
 log_user_complete "Torrent" "✅ Magnet link processing completed successfully"
