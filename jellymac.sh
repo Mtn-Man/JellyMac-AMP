@@ -379,6 +379,8 @@ _SHUTDOWN_IN_PROGRESS=""
 
 # --- YouTube Queue Tracking ---
 _YOUTUBE_PROCESSING_ACTIVE=""             # Flag to track if YouTube is being processed in foreground
+_ACTIVE_YOUTUBE_URL=""                    # Track the currently downloading YouTube URL
+_ACTIVE_YOUTUBE_PID=""                    # Track the PID of active YouTube download
 
 # --- Torrent Cleanup Tracking ---
 last_torrent_cleanup=0                    # Timestamp of last cleanup (Unix timestamp) 
@@ -417,6 +419,14 @@ graceful_shutdown_and_cleanup() {
     echo 
     # shellcheck disable=SC2317
     log_user_shutdown "JellyMac" "Exiting JellyMac..." 
+    
+    # NEW: Handle interrupted YouTube downloads
+    # shellcheck disable=SC2317
+    if [[ -n "$_ACTIVE_YOUTUBE_URL" && -n "$_ACTIVE_YOUTUBE_PID" ]]; then
+        log_user_info "JellyMac" "🔄 Handling interrupted YouTube download..."
+        _handle_interrupted_youtube_download
+    fi
+    
     #shellcheck disable=SC2317
     if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" > /dev/null; then
         log_user_info "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
@@ -609,6 +619,111 @@ check_and_resume_youtube_queue() {
 }
 
 #==============================================================================
+# Function: _handle_interrupted_youtube_download
+# Description: Handles cleanup and re-queuing of interrupted YouTube downloads
+# Parameters: None
+# Returns: None
+# Side Effects: Cleans up partial files, removes from archive, re-queues URL
+#==============================================================================
+_handle_interrupted_youtube_download() {
+    # shellcheck disable=SC2317
+    log_debug_event "JellyMac" "Cleaning up interrupted YouTube download: ${_ACTIVE_YOUTUBE_URL:0:60}..."
+    
+    # shellcheck disable=SC2317
+    # 1. Terminate the download process if still running
+    if [[ -n "$_ACTIVE_YOUTUBE_PID" ]] && ps -p "$_ACTIVE_YOUTUBE_PID" >/dev/null 2>&1; then
+        log_debug_event "JellyMac" "Terminating YouTube download process (PID: $_ACTIVE_YOUTUBE_PID)..."
+        kill "$_ACTIVE_YOUTUBE_PID" 2>/dev/null || true
+        sleep 1
+        # Force kill if still running
+        if ps -p "$_ACTIVE_YOUTUBE_PID" >/dev/null 2>&1; then
+            kill -9 "$_ACTIVE_YOUTUBE_PID" 2>/dev/null || true
+        fi
+    fi
+    
+    # shellcheck disable=SC2317
+    # 2. Clean up partial download files in LOCAL_DIR_YOUTUBE
+    if [[ -n "${LOCAL_DIR_YOUTUBE:-}" && -d "${LOCAL_DIR_YOUTUBE}" ]]; then
+        log_debug_event "JellyMac" "Cleaning up partial YouTube files in: $LOCAL_DIR_YOUTUBE"
+        find "${LOCAL_DIR_YOUTUBE}" -maxdepth 1 \( -name "*.part" -o -name "*.tmp" -o -name "*.ytdl" \) -type f -delete 2>/dev/null || true
+    fi
+    
+    # shellcheck disable=SC2317
+    # 3. Remove from download archive to allow retry
+    if [[ -n "${DOWNLOAD_ARCHIVE_YOUTUBE:-}" && -f "${DOWNLOAD_ARCHIVE_YOUTUBE}" && -n "$_ACTIVE_YOUTUBE_URL" ]]; then
+        _remove_url_from_youtube_archive "$_ACTIVE_YOUTUBE_URL"
+    fi
+    
+    # shellcheck disable=SC2317
+    # 4. Add back to queue for retry on next startup
+    if [[ -n "$_ACTIVE_YOUTUBE_URL" ]]; then
+        local queue_file="${STATE_DIR}/youtube_queue.txt"
+        # Check if URL is already in queue to avoid duplicates
+        if ! grep -Fxq "$_ACTIVE_YOUTUBE_URL" "$queue_file" 2>/dev/null; then
+            echo "$_ACTIVE_YOUTUBE_URL" >> "$queue_file"
+            log_user_info "JellyMac" "📋 Re-queued interrupted download for next startup: ${_ACTIVE_YOUTUBE_URL:0:60}..."
+        fi
+    fi
+    
+    # shellcheck disable=SC2317
+    # 5. Clear tracking variables
+    _ACTIVE_YOUTUBE_URL=""
+    _ACTIVE_YOUTUBE_PID=""
+}
+
+#==============================================================================
+# Function: _remove_url_from_youtube_archive
+# Description: Removes a YouTube URL from the download archive
+# Parameters:
+#   $1 - YouTube URL to remove from archive
+# Returns: None
+#==============================================================================
+_remove_url_from_youtube_archive() {
+    # shellcheck disable=SC2317
+    local url_to_remove="$1"
+    
+    # shellcheck disable=SC2317
+    if [[ -z "$url_to_remove" || -z "${DOWNLOAD_ARCHIVE_YOUTUBE:-}" || ! -f "${DOWNLOAD_ARCHIVE_YOUTUBE}" ]]; then
+        return
+    fi
+    
+    # shellcheck disable=SC2317
+    # Extract video ID from URL using Bash 3.2 compatible method
+    local video_id=""
+    case "$url_to_remove" in
+        *"watch?v="*)
+            video_id="${url_to_remove#*watch?v=}"  # Remove everything before "watch?v="
+            video_id="${video_id%%&*}"             # Remove everything after first "&"
+            ;;
+        *"youtu.be/"*)
+            video_id="${url_to_remove#*youtu.be/}" # Remove everything before "youtu.be/"
+            video_id="${video_id%%\?*}"            # Remove everything after first "?"
+            ;;
+    esac
+    
+    # shellcheck disable=SC2317
+    if [[ -n "$video_id" ]]; then
+        log_debug_event "JellyMac" "Removing video ID from archive: $video_id"
+        # Create backup and remove entry
+        if cp "${DOWNLOAD_ARCHIVE_YOUTUBE}" "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" 2>/dev/null; then
+            if grep -v "youtube $video_id" "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" > "${DOWNLOAD_ARCHIVE_YOUTUBE}" 2>/dev/null; then
+                log_debug_event "JellyMac" "Successfully removed $video_id from download archive"
+            else
+                log_warn_event "JellyMac" "Failed to update download archive"
+                # Restore backup if update failed
+                mv "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" "${DOWNLOAD_ARCHIVE_YOUTUBE}" 2>/dev/null || true
+            fi
+            # Clean up backup file
+            rm -f "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" 2>/dev/null || true
+        else
+            log_warn_event "JellyMac" "Failed to create backup of download archive"
+        fi
+    else
+        log_warn_event "JellyMac" "Could not extract video ID from URL: ${url_to_remove:0:100}..."
+    fi
+}
+
+#==============================================================================
 # MEDIA DETECTION AND PROCESSING FUNCTIONS
 #==============================================================================
 # Functions for detecting and processing media from various sources
@@ -651,6 +766,7 @@ _check_clipboard_youtube() {
                 
                 # No active processing - start foreground processing
                 _YOUTUBE_PROCESSING_ACTIVE="true"
+                _ACTIVE_YOUTUBE_URL="$trimmed_cb"  # NEW: Track active URL
                 log_user_info "JellyMac" "🎬 Starting YouTube download..."
                 log_user_info "JellyMac" "💡 You may continue copying links - they'll be queued automatically!"
                 
@@ -683,13 +799,20 @@ _check_clipboard_youtube() {
                 local background_loop_pid=$!
                 
                 # Process YouTube in foreground with full output visibility
-                if "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb"; then
+                "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb" &
+                _ACTIVE_YOUTUBE_PID=$!  # NEW: Track active PID
+                
+                if wait "$_ACTIVE_YOUTUBE_PID"; then
                     log_user_info "JellyMac" "✅ YouTube download complete: '${trimmed_cb:0:60}...'"
                 else
                     log_warn_event "JellyMac" "❌ YouTube download failed: '${trimmed_cb:0:60}...'"
                     send_desktop_notification "JellyMac: YouTube Error" "Failed: ${trimmed_cb:0:60}..." "Basso"
                     log_warn_event "JellyMac" "Close JellyMac, run yt-dlp -u, restart JellyMac and try again."
                 fi
+                
+                # Clear tracking variables after completion
+                _ACTIVE_YOUTUBE_URL=""
+                _ACTIVE_YOUTUBE_PID=""
                 
                 # Process any queued downloads
                 _process_youtube_queue

@@ -86,31 +86,66 @@ _process_youtube_queue() {
     
     local processed_count=0
     local failed_count=0
+    local interrupted_count=0
+    
     for queued_url in "${queued_urls[@]}"; do
         [[ -z "$queued_url" ]] && continue
         
         ((processed_count++))
         log_user_info "JellyMac" "🎬 Processing queued download $processed_count/$total_count: '${queued_url:0:60}...'"
         
-        if "$HANDLE_YOUTUBE_SCRIPT" "$queued_url"; then
-            log_user_info "JellyMac" "✅ Queued download complete ($processed_count/$total_count): '${queued_url:0:60}...'"
-            send_desktop_notification "JellyMac: YouTube Complete" "Queued #$processed_count: ${queued_url:0:50}..."
+        # Update global tracking for this queued item
+        _ACTIVE_YOUTUBE_URL="$queued_url"
+        
+        # Start the download process
+        "$HANDLE_YOUTUBE_SCRIPT" "$queued_url" &
+        local handler_pid=$!
+        _ACTIVE_YOUTUBE_PID="$handler_pid"
+        
+        # Wait for completion and check result
+        if wait "$handler_pid"; then
+            local wait_exit_code=$?
+            if [[ "$wait_exit_code" -eq 0 ]]; then
+                log_user_info "JellyMac" "✅ Queued download complete ($processed_count/$total_count): '${queued_url:0:60}...'"
+                send_desktop_notification "JellyMac: YouTube Complete" "Queued #$processed_count: ${queued_url:0:50}..."
+            elif [[ "$wait_exit_code" -eq 130 ]]; then
+                # Interrupted (SIGINT)
+                ((interrupted_count++))
+                log_warn_event "JellyMac" "🔄 Queued download interrupted ($processed_count/$total_count): '${queued_url:0:60}...'"
+                # Re-add to queue for retry
+                echo "$queued_url" >> "$queue_file"
+            else
+                # Other failure
+                ((failed_count++))
+                log_warn_event "JellyMac" "❌ Queued download failed ($processed_count/$total_count): '${queued_url:0:60}...'"
+                send_desktop_notification "JellyMac: YouTube Error" "Failed #$processed_count: ${queued_url:0:50}..." "Basso"
+                # Re-add failed URL to queue for retry on next startup
+                echo "$queued_url" >> "$queue_file"
+            fi
         else
+            # wait command itself failed
             ((failed_count++))
-            log_warn_event "JellyMac" "❌ Queued download failed ($processed_count/$total_count): '${queued_url:0:60}...'"
-            send_desktop_notification "JellyMac: YouTube Error" "Failed #$processed_count: ${queued_url:0:50}..." "Basso"
-            
-            # Re-add failed URL to queue for retry on next startup
+            log_warn_event "JellyMac" "❌ Failed to wait for queued download ($processed_count/$total_count): '${queued_url:0:60}...'"
+            # Re-add to queue for retry
             echo "$queued_url" >> "$queue_file"
         fi
+        
+        # Clear tracking variables
+        _ACTIVE_YOUTUBE_URL=""
+        _ACTIVE_YOUTUBE_PID=""
     done
     
-    if [[ "$failed_count" -eq 0 ]]; then
+    # Summary reporting
+    local success_count=$((processed_count - failed_count - interrupted_count))
+    
+    if [[ "$failed_count" -eq 0 && "$interrupted_count" -eq 0 ]]; then
         log_user_info "JellyMac" "📋 Queue processing complete! Successfully processed all $processed_count downloads."
-        # Queue file was already deleted at the start, and no failures to re-add
     else
-        log_user_info "JellyMac" "📋 Queue processing complete! Processed $processed_count downloads ($failed_count failed, re-queued for retry)."
-        log_user_info "JellyMac" "💡 Failed downloads will be offered for retry on next JellyMac startup."
+        local requeued_count=$((failed_count + interrupted_count))
+        log_user_info "JellyMac" "📋 Queue processing complete! $success_count successful, $failed_count failed, $interrupted_count interrupted."
+        if [[ "$requeued_count" -gt 0 ]]; then
+            log_user_info "JellyMac" "💡 $requeued_count downloads re-queued for retry on next JellyMac startup."
+        fi
     fi
 }
 
