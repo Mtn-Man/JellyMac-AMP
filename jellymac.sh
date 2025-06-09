@@ -471,11 +471,6 @@ graceful_shutdown_and_cleanup() {
         _cleanup_common_utils_temp_files 
     fi
     # shellcheck disable=SC2317
-    if [[ -f "${STATE_DIR}/youtube_queue.txt" ]]; then
-        rm -f "${STATE_DIR}/youtube_queue.txt"
-        log_debug_event "JellyMac" "Cleaned up YouTube queue file."
-    fi
-    # shellcheck disable=SC2317
     _cleanup_jellymac_temp_files   
 
     # shellcheck disable=SC2317
@@ -574,6 +569,43 @@ is_item_being_processed() {
         fi
     done
     return 1 
+}
+
+#==============================================================================
+# Function: check_and_resume_youtube_queue
+# Description: Checks for existing YouTube queue on startup and resumes automatically
+# Parameters: None
+# Returns: None
+# Side Effects: Processes existing queue if found
+#==============================================================================
+check_and_resume_youtube_queue() {
+    local queue_file="${STATE_DIR}/youtube_queue.txt"
+    
+    if [[ ! -f "$queue_file" ]]; then
+        log_debug_event "JellyMac" "No existing YouTube queue found on startup."
+        return 0
+    fi
+    
+    # Count non-empty lines in queue
+    local queue_count
+    queue_count=$(grep -c . "$queue_file" 2>/dev/null || echo "0")
+    
+    if [[ "$queue_count" -eq 0 ]]; then
+        log_debug_event "JellyMac" "YouTube queue file exists but is empty. Removing."
+        rm -f "$queue_file"
+        return 0
+    fi
+    
+    log_user_info "JellyMac" "📋 Found $queue_count queued YouTube downloads from previous session"
+    log_user_info "JellyMac" "🎬 Auto-resuming YouTube queue..."
+    
+    # Process the queue
+    if command -v _process_youtube_queue >/dev/null 2>&1; then
+        _process_youtube_queue
+    else
+        log_warn_event "JellyMac" "Queue processing function not available. Cannot resume queue."
+        rm -f "$queue_file"
+    fi
 }
 
 #==============================================================================
@@ -972,6 +1004,10 @@ if [[ -n "$PBPASTE_CMD" ]]; then
     _check_clipboard_youtube; 
     _check_clipboard_magnet
 else log_user_info "JellyMac" "📋 Skipping initial clipboard checks ('pbpaste' not available or clipboard features disabled)."; fi
+
+if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
+    check_and_resume_youtube_queue
+fi
 
 log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds..."
 log_user_status "JellyMac" "(Press Ctrl+C to exit any time)"

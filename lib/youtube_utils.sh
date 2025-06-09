@@ -85,6 +85,7 @@ _process_youtube_queue() {
     log_user_info "JellyMac" "📋 Processing $total_count queued YouTube downloads..."
     
     local processed_count=0
+    local failed_count=0
     for queued_url in "${queued_urls[@]}"; do
         [[ -z "$queued_url" ]] && continue
         
@@ -95,12 +96,22 @@ _process_youtube_queue() {
             log_user_info "JellyMac" "✅ Queued download complete ($processed_count/$total_count): '${queued_url:0:60}...'"
             send_desktop_notification "JellyMac: YouTube Complete" "Queued #$processed_count: ${queued_url:0:50}..."
         else
+            ((failed_count++))
             log_warn_event "JellyMac" "❌ Queued download failed ($processed_count/$total_count): '${queued_url:0:60}...'"
             send_desktop_notification "JellyMac: YouTube Error" "Failed #$processed_count: ${queued_url:0:50}..." "Basso"
+            
+            # Re-add failed URL to queue for retry on next startup
+            echo "$queued_url" >> "$queue_file"
         fi
     done
     
-    log_user_info "JellyMac" "📋 Queue processing complete! Processed $processed_count downloads."
+    if [[ "$failed_count" -eq 0 ]]; then
+        log_user_info "JellyMac" "📋 Queue processing complete! Successfully processed all $processed_count downloads."
+        # Queue file was already deleted at the start, and no failures to re-add
+    else
+        log_user_info "JellyMac" "📋 Queue processing complete! Processed $processed_count downloads ($failed_count failed, re-queued for retry)."
+        log_user_info "JellyMac" "💡 Failed downloads will be offered for retry on next JellyMac startup."
+    fi
 }
 
 # Function: _check_clipboard_youtube_for_queue
