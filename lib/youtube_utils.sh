@@ -178,6 +178,164 @@ _check_clipboard_youtube_for_queue() {
     fi
 }
 
+# --- YouTube Processing Pre-flight Checks ---
+
+# Function: _perform_youtube_preflight_checks
+# Description: Performs essential checks before attempting YouTube processing.
+#              Exits with an error if critical checks fail.
+# Parameters: None
+# Returns: 0 on success, exits on failure.
+# Depends on: Global config variables (YTDLP_EXECUTABLE, LOCAL_DIR_YOUTUBE, DEST_DIR_YOUTUBE, YTDLP_FORMAT, MIN_FREE_SPACE_GB_LOCAL_YOUTUBE)
+#             Functions from common_utils.sh (is_network_volume, get_free_space_gb, validate_network_volume_before_transfer)
+#             Functions from logging_utils.sh (log_fatal_event, log_error_event, log_debug_event)
+_perform_youtube_preflight_checks() {
+    log_debug_event "YouTubeUtils" "Performing YouTube pre-flight checks..."
+
+    # Check 1: yt-dlp executable
+    if [[ -z "${YTDLP_EXECUTABLE:-}" ]] || ! command -v "$YTDLP_EXECUTABLE" &>/dev/null; then
+        log_fatal_event "YT_PREFLIGHT" "yt-dlp executable not found or not configured (YTDLP_EXECUTABLE: '${YTDLP_EXECUTABLE:-Not Set}'). Please install yt-dlp and/or configure YTDLP_EXECUTABLE in jellymac_config.sh."
+    fi
+
+    # Check 2: Local YouTube directory
+    if [[ -z "${LOCAL_DIR_YOUTUBE:-}" ]]; then
+        log_fatal_event "YT_PREFLIGHT" "LOCAL_DIR_YOUTUBE is not configured in jellymac_config.sh."
+    fi
+    if [[ ! -d "$LOCAL_DIR_YOUTUBE" ]]; then
+        log_debug_event "YT_PREFLIGHT" "Local YouTube directory '$LOCAL_DIR_YOUTUBE' does not exist. Attempting to create..."
+        if ! mkdir -p "$LOCAL_DIR_YOUTUBE"; then
+            log_fatal_event "YT_PREFLIGHT" "Failed to create local YouTube directory '$LOCAL_DIR_YOUTUBE'. Please check permissions."
+        else
+            log_debug_event "YT_PREFLIGHT" "Successfully created local YouTube directory '$LOCAL_DIR_YOUTUBE'."
+        fi
+    fi
+    if [[ ! -w "$LOCAL_DIR_YOUTUBE" ]]; then
+        log_fatal_event "YT_PREFLIGHT" "Local YouTube directory '$LOCAL_DIR_YOUTUBE' is not writable. Please check permissions."
+    fi
+
+    # Check 3: Destination YouTube directory
+    if [[ -z "${DEST_DIR_YOUTUBE:-}" ]]; then
+        log_fatal_event "YT_PREFLIGHT" "DEST_DIR_YOUTUBE is not configured in jellymac_config.sh."
+    fi
+    # Use validate_network_volume_before_transfer for a comprehensive check of the destination
+    # This function (from common_utils.sh) checks existence, writability, and mount status for network volumes.
+    # It logs detailed errors and returns 1 on failure, 0 on success.
+    if ! validate_network_volume_before_transfer "$DEST_DIR_YOUTUBE" "YT_PREFLIGHT"; then
+        # validate_network_volume_before_transfer logs its own detailed errors.
+        # We log a general fatal event here to ensure script exit.
+        log_fatal_event "YT_PREFLIGHT" "Destination YouTube directory '$DEST_DIR_YOUTUBE' validation failed. Please review previous error messages."
+    else
+        log_debug_event "YT_PREFLIGHT" "Destination YouTube directory '$DEST_DIR_YOUTUBE' is validated and accessible."
+    fi
+
+    # Check 4: yt-dlp format string
+    if [[ -z "${YTDLP_FORMAT:-}" ]]; then
+        log_fatal_event "YT_PREFLIGHT" "YTDLP_FORMAT for YouTube not set in config. Please configure it in jellymac_config.sh."
+    fi
+
+    # Check 5: Disk space in LOCAL_DIR_YOUTUBE
+    local local_free_space_gb
+    local_free_space_gb=$(get_free_space_gb "$LOCAL_DIR_YOUTUBE")
+    local min_free_space_local_youtube="${MIN_FREE_SPACE_GB_LOCAL_YOUTUBE:-5}" # Default to 5GB if not set
+
+    if (( $(echo "$local_free_space_gb < $min_free_space_local_youtube" | bc -l) )); then
+        log_fatal_event "YT_PREFLIGHT" "Insufficient free space in local YouTube directory '$LOCAL_DIR_YOUTUBE'. Found $local_free_space_gb GB, require $min_free_space_local_youtube GB."
+    else
+        log_debug_event "YT_PREFLIGHT" "Sufficient free space in '$LOCAL_DIR_YOUTUBE': $local_free_space_gb GB available (min required: $min_free_space_local_youtube GB)."
+    fi
+
+    log_debug_event "YouTubeUtils" "YouTube pre-flight checks passed."
+    return 0
+}
+
+# --- YouTube Command Execution ---
+
+# Function: _execute_ytdlp_command
+# Description: Executes the yt-dlp command with specified arguments,
+#              capturing stdout and stderr to temporary files while also
+#              displaying live output.
+# Parameters:
+#   $1       - Path to the yt-dlp executable.
+#   $2       - Name of a variable in the caller's scope to store the stdout capture file path.
+#   $3       - Name of a variable in the caller's scope to store the stderr capture file path.
+#   $@ (from 4th onwards) - Arguments to pass to yt-dlp.
+# Returns: The exit code of the yt-dlp command.
+#          Sets the variables named by $2 and $3 in the caller's scope to the paths of the capture files.
+# Depends on: mktemp, tee, _COMMON_UTILS_TEMP_FILES_TO_CLEAN (from common_utils.sh),
+#             log_debug_event, log_warn_event, log_fatal_event (from logging_utils.sh)
+#             STATE_DIR (global config, expected to be validated by common_utils.sh)
+_execute_ytdlp_command() {
+    local ytdlp_executable="$1"
+    local __stdout_capture_var_name="$2" # Indirect variable assignment target
+    local __stderr_capture_var_name="$3" # Indirect variable assignment target
+    shift 3 # Remove the first three params, rest are yt-dlp args
+    local ytdlp_args=("$@")
+
+    if [[ -z "$ytdlp_executable" ]] || ! command -v "$ytdlp_executable" &>/dev/null || ! [[ -x "$ytdlp_executable" ]]; then
+        log_fatal_event "YT_EXEC" "yt-dlp executable '$ytdlp_executable' is not valid, not found, or not executable."
+        return 255 # Should not happen if preflight checks passed
+    fi
+    if [[ -z "$__stdout_capture_var_name" || -z "$__stderr_capture_var_name" ]]; then
+        log_fatal_event "YT_EXEC" "Internal error: stdout/stderr capture variable names not provided to _execute_ytdlp_command."
+        return 254
+    fi
+    if [[ -z "$STATE_DIR" || ! -d "$STATE_DIR" || ! -w "$STATE_DIR" ]]; then
+        log_fatal_event "YT_EXEC" "STATE_DIR ('${STATE_DIR:-Not Set}') is not available or not writable for temp files."
+        return 253
+    fi
+
+    local stdout_file
+    local stderr_file
+    stdout_file=$(mktemp "${STATE_DIR}/.ytdlp_stdout.XXXXXX")
+    stderr_file=$(mktemp "${STATE_DIR}/.ytdlp_stderr.XXXXXX")
+
+    # Add to common_utils.sh's cleanup array if available
+    # This array is cleaned by _cleanup_common_utils_temp_files, called by the main script's trap
+    if declare -p _COMMON_UTILS_TEMP_FILES_TO_CLEAN &>/dev/null; then
+        _COMMON_UTILS_TEMP_FILES_TO_CLEAN+=("$stdout_file")
+        _COMMON_UTILS_TEMP_FILES_TO_CLEAN+=("$stderr_file")
+        log_debug_event "YT_EXEC" "Added $stdout_file and $stderr_file to _COMMON_UTILS_TEMP_FILES_TO_CLEAN."
+    else
+        log_warn_event "YT_EXEC" "Temp files created ($stdout_file, $stderr_file) but _COMMON_UTILS_TEMP_FILES_TO_CLEAN (from common_utils.sh) not found. Manual cleanup might be needed if script exits unexpectedly."
+    fi
+
+    # Set the caller's variables to the temp file paths
+    # Using eval for indirect assignment, ensure var names are safe (controlled internally)
+    eval "$__stdout_capture_var_name=\"$stdout_file\""
+    eval "$__stderr_capture_var_name=\"$stderr_file\""
+
+    log_debug_event "YT_EXEC" "Executing: $ytdlp_executable ${ytdlp_args[*]}"
+    log_debug_event "YT_EXEC" "Stdout will be captured to: $stdout_file"
+    log_debug_event "YT_EXEC" "Stderr will be captured to: $stderr_file"
+
+    local ytdlp_actual_exit_code
+    local tee_stdout_ec
+    local tee_stderr_ec
+
+    # Execute yt-dlp with dual output capture:
+    # stderr: tee to capture file and display to user
+    # stdout: tee to capture file and display progress to user
+    set +e # Allow capturing PIPESTATUS
+    { "$ytdlp_executable" "${ytdlp_args[@]}" \
+        2> >(tee "$stderr_file" >&2); \
+        tee_stderr_ec=${PIPESTATUS[1]}; \
+    } | tee "$stdout_file"
+    
+    ytdlp_actual_exit_code=${PIPESTATUS[0]} # yt-dlp exit code (from the compound command on the left of the main pipe)
+    tee_stdout_ec=${PIPESTATUS[1]}      # tee for stdout exit code
+    set -e
+
+    if [[ "$tee_stdout_ec" -ne 0 ]]; then
+        log_warn_event "YT_EXEC" "The 'tee' command for yt-dlp stdout exited with status $tee_stdout_ec. Stdout capture might be affected."
+    fi
+    # tee_stderr_ec is captured from within the compound command for stderr's tee.
+    if [[ "$tee_stderr_ec" -ne 0 ]]; then
+        log_warn_event "YT_EXEC" "The 'tee' command for yt-dlp stderr exited with status $tee_stderr_ec. Stderr capture might be affected."
+    fi
+    
+    log_debug_event "YT_EXEC" "yt-dlp execution finished. Exit code: $ytdlp_actual_exit_code"
+    return "$ytdlp_actual_exit_code"
+}
+
 # Function: _build_ytdlp_single_video_args
 # Description: Constructs a common set of yt-dlp arguments for downloading a
 #              single YouTube video. Arguments are printed to stdout, one per line.
