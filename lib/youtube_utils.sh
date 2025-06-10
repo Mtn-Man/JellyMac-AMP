@@ -309,31 +309,208 @@ _execute_ytdlp_command() {
 
     local ytdlp_actual_exit_code
     local tee_stdout_ec
-    local tee_stderr_ec
+    local tee_stderr_exit_code # Renamed for clarity
 
-    # Execute yt-dlp with dual output capture:
-    # stderr: tee to capture file and display to user
-    # stdout: tee to capture file and display progress to user
+    # Temporary file to capture the exit code of the tee command handling stderr
+    local stderr_tee_ec_capture_file
+    stderr_tee_ec_capture_file=$(mktemp "${STATE_DIR}/.ytdlp_stderr_ec.XXXXXX")
+
+    if declare -p _COMMON_UTILS_TEMP_FILES_TO_CLEAN &>/dev/null; then
+        _COMMON_UTILS_TEMP_FILES_TO_CLEAN+=("$stderr_tee_ec_capture_file")
+        log_debug_event "YT_EXEC" "Added $stderr_tee_ec_capture_file to _COMMON_UTILS_TEMP_FILES_TO_CLEAN for cleanup."
+    else
+        # This warning is already present for stdout_file and stderr_file, so it's consistent
+        log_warn_event "YT_EXEC" "Temp file for stderr tee exit code created ($stderr_tee_ec_capture_file) but _COMMON_UTILS_TEMP_FILES_TO_CLEAN not found."
+    fi
+
     set +e # Allow capturing PIPESTATUS
-    { "$ytdlp_executable" "${ytdlp_args[@]}" \
-        2> >(tee "$stderr_file" >&2); \
-        tee_stderr_ec=${PIPESTATUS[1]}; \
-    } | tee "$stdout_file"
+    # Execute yt-dlp:
+    # 1. yt-dlp's stderr is redirected to a process substitution.
+    # 2. Inside the process substitution:
+    #    - 'tee' writes stderr to the capture file ($stderr_file) AND to the original stderr (>&2).
+    #    - After 'tee' finishes, its exit code ($?) is written to $stderr_tee_ec_capture_file.
+    # 3. The entire compound command { ... }'s stdout (which is yt-dlp's stdout) is piped to another 'tee'.
+    { "$ytdlp_executable" "${ytdlp_args[@]}" 2> >(tee "$stderr_file" >&2 ; echo $? > "$stderr_tee_ec_capture_file") ; } | tee "$stdout_file"
     
-    ytdlp_actual_exit_code=${PIPESTATUS[0]} # yt-dlp exit code (from the compound command on the left of the main pipe)
-    tee_stdout_ec=${PIPESTATUS[1]}      # tee for stdout exit code
+    # PIPESTATUS[0] will be the exit code of the compound command { ... }, 
+    # which is the exit code of its last simple command: "$ytdlp_executable"...
+    ytdlp_actual_exit_code=${PIPESTATUS[0]} 
+    # PIPESTATUS[1] will be the exit code of the 'tee "$stdout_file"'
+    tee_stdout_ec=${PIPESTATUS[1]}      
     set -e
+
+    # Read the captured exit code of the tee command that handled stderr
+    if [[ -f "$stderr_tee_ec_capture_file" ]]; then
+        tee_stderr_exit_code=$(<"$stderr_tee_ec_capture_file")
+        # Validate it's a number; default to 0 if not (though echo $? should be reliable)
+        if ! [[ "$tee_stderr_exit_code" =~ ^[0-9]+$ ]]; then
+            log_warn_event "YT_EXEC" "Invalid exit code format read from stderr tee capture file ('$stderr_tee_ec_capture_file'): '$tee_stderr_exit_code'. Assuming 0."
+            tee_stderr_exit_code=0
+        fi
+    else
+        log_warn_event "YT_EXEC" "Stderr tee exit code capture file ('$stderr_tee_ec_capture_file') not found. Assuming 0 for its status."
+        tee_stderr_exit_code=0 
+    fi
 
     if [[ "$tee_stdout_ec" -ne 0 ]]; then
         log_warn_event "YT_EXEC" "The 'tee' command for yt-dlp stdout exited with status $tee_stdout_ec. Stdout capture might be affected."
     fi
-    # tee_stderr_ec is captured from within the compound command for stderr's tee.
-    if [[ "$tee_stderr_ec" -ne 0 ]]; then
-        log_warn_event "YT_EXEC" "The 'tee' command for yt-dlp stderr exited with status $tee_stderr_ec. Stderr capture might be affected."
+    if [[ "$tee_stderr_exit_code" -ne 0 ]]; then
+        log_warn_event "YT_EXEC" "The 'tee' command for yt-dlp stderr exited with status $tee_stderr_exit_code. Stderr capture might be affected."
     fi
     
     log_debug_event "YT_EXEC" "yt-dlp execution finished. Exit code: $ytdlp_actual_exit_code"
     return "$ytdlp_actual_exit_code"
+}
+
+# --- YouTube SABR Error Handling and Retry ---
+
+# Function: _handle_ytdlp_sabr_retry
+# Description: Attempts to retry yt-dlp download if specific SABR-related errors are detected.
+# Parameters:
+#   $1       - Initial yt-dlp exit code.
+#   $2       - Path to the stdout capture file from the initial attempt (currently unused but good for future use).
+#   $3       - Path to the stderr capture file from the initial attempt.
+#   $4       - Path to the yt-dlp executable.
+#   $5       - Name of a variable in the caller's scope to store/update the stdout capture file path.
+#   $6       - Name of a variable in the caller's scope to store/update the stderr capture file path.
+#   $@ (from 7th onwards) - Original arguments passed to yt-dlp (excluding the executable itself).
+# Returns: The final exit code of yt-dlp (original or from retry).
+#          Updates variables named by $5 and $6 in the caller's scope if a retry occurs.
+# Depends on: _execute_ytdlp_command, log_user_info, log_warn_event, log_debug_event
+#             Global config: YOUTUBE_SABR_RETRY_PLAYER_CLIENTS (array, e.g., ("android" "ios"))
+_handle_ytdlp_sabr_retry() {
+    local initial_exit_code="$1"
+    # local initial_stdout_file="$2" # Parameter kept for future use, e.g. if stdout analysis becomes necessary
+    local initial_stderr_file="$3"
+    local ytdlp_executable="$4"
+    local __stdout_capture_var_name="$5" # Indirect variable assignment target
+    local __stderr_capture_var_name="$6" # Indirect variable assignment target
+    shift 6 # Remove the first six params, rest are original yt-dlp args
+    local original_ytdlp_args=("$@")
+
+    local final_exit_code="$initial_exit_code"
+    local stderr_content
+
+    # Only attempt retry if initial command failed in a way that suggests SABR issues
+    # yt-dlp error 101 is "max-downloads" reached, not a SABR error.
+    if [[ "$initial_exit_code" -eq 0 || "$initial_exit_code" -eq 101 ]]; then
+        log_debug_event "YT_SABR" "Initial yt-dlp exit code $initial_exit_code does not indicate a SABR-retryable error."
+        return "$initial_exit_code"
+    fi
+
+    if [[ ! -f "$initial_stderr_file" ]]; then
+        log_warn_event "YT_SABR" "Initial stderr capture file '$initial_stderr_file' not found. Cannot attempt SABR retry."
+        return "$initial_exit_code"
+    fi
+    stderr_content=$(<"$initial_stderr_file")
+
+    # Define SABR error patterns (expanded from original handle_youtube_link.sh)
+    # Common patterns indicating potential signature/cipher issues or client restrictions.
+    local sabr_patterns=(
+        "SABR_ERR_NO_STREAM"
+        "Your GAPI key is probably invalid"
+        "Video unavailable"
+        "This video is unavailable"
+        "Unable to extract video data"
+        "ERROR: Unable to extract video data"
+        "ERROR: Video unavailable"
+        "ERROR: This video is unavailable"
+        "Forbidden"
+        "HTTP Error 403"
+        "KeyError: 'cipher'"
+        "KeyError: 'signatureCipher'"
+        "KeyError: 's'"
+    )
+
+    local sabr_error_detected=false
+    for pattern in "${sabr_patterns[@]}"; do
+        if [[ "$stderr_content" == *"$pattern"* ]]; then
+            sabr_error_detected=true
+            log_debug_event "YT_SABR" "SABR-related error pattern matched: '$pattern'"
+            break
+        fi
+    done
+
+    if [[ "$sabr_error_detected" == "true" ]]; then
+        log_user_info "YouTube" "🚦 SABR-related error detected. Attempting recovery strategies..."
+
+        # Default player clients to try if not configured
+        # Ensure YOUTUBE_SABR_RETRY_PLAYER_CLIENTS is treated as an array
+        local player_clients_to_try
+        if [[ -n "${YOUTUBE_SABR_RETRY_PLAYER_CLIENTS[*]}" && ${#YOUTUBE_SABR_RETRY_PLAYER_CLIENTS[@]} -gt 0 ]]; then
+            player_clients_to_try=("${YOUTUBE_SABR_RETRY_PLAYER_CLIENTS[@]}")
+        else
+            player_clients_to_try=("android" "ios") # Default if not set or empty
+        fi
+        log_debug_event "YT_SABR" "Player clients to try for SABR retry: ${player_clients_to_try[*]}"
+
+        for client in "${player_clients_to_try[@]}"; do
+            log_user_info "YouTube" "Retrying with YouTube player client: $client"
+            
+            local retry_args=()
+            local skip_next_arg=false
+            local i
+            for i in "${!original_ytdlp_args[@]}"; do
+                local arg="${original_ytdlp_args[$i]}"
+                if [[ "$skip_next_arg" == "true" ]]; then
+                    skip_next_arg=false
+                    continue
+                fi
+                # Remove existing player client and its value
+                if [[ "$arg" == "--youtube-player-client" ]]; then
+                    skip_next_arg=true 
+                    continue
+                fi
+                # Remove cookies if retrying with android client (matches handle_youtube_link.sh behavior)
+                if [[ "$client" == "android" && "$arg" == "--cookies" ]]; then
+                    skip_next_arg=true
+                    continue
+                fi
+                retry_args+=("$arg")
+            done
+
+            retry_args+=("--youtube-player-client" "$client")
+            # Ensure --youtube-skip-dash-manifest is present
+            if ! printf '%s\0' "${retry_args[@]}" | grep -Fxqz -- "--youtube-skip-dash-manifest"; then
+                 retry_args+=("--youtube-skip-dash-manifest")
+            fi
+
+            local retry_stdout_file # Will be set by _execute_ytdlp_command
+            local retry_stderr_file # Will be set by _execute_ytdlp_command
+
+            _execute_ytdlp_command "$ytdlp_executable" \
+                "retry_stdout_file" \
+                "retry_stderr_file" \
+                "${retry_args[@]}"
+            final_exit_code=$?
+
+            # Update caller's capture file variables with the paths from the retry
+            eval "$__stdout_capture_var_name=\"$retry_stdout_file\""
+            eval "$__stderr_capture_var_name=\"$retry_stderr_file\""
+
+            if [[ "$final_exit_code" -eq 0 ]]; then
+                log_user_info "YouTube" "✅ SABR retry successful with client '$client'!"
+                return 0 # Success
+            elif [[ "$final_exit_code" -eq 101 ]]; then
+                log_user_info "YouTube" "✅ SABR retry with client '$client' hit max-downloads (archive). Considered success."
+                return 101 # Max-downloads
+            else
+                log_warn_event "YouTube" "SABR retry with client '$client' failed. Exit code: $final_exit_code."
+                if [[ -f "$retry_stderr_file" ]]; then
+                    stderr_content=$(<"$retry_stderr_file") # Update for next potential pattern match if more strategies were added
+                else
+                    stderr_content="" # Clear if file not found
+                fi
+            fi
+        done
+        
+        log_warn_event "YouTube" "All SABR player client retries failed."
+    else
+        log_debug_event "YT_SABR" "No specific SABR error pattern matched in stderr. Not attempting SABR retry."
+    fi
+    
+    return "$final_exit_code" # Return original or last retry exit code
 }
 
 # Function: _build_ytdlp_single_video_args
