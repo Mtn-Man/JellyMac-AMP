@@ -737,6 +737,227 @@ _normalize_and_rename_video_file() {
     return 0
 }
 
+# --- YouTube Archive Management ---
+
+# Function: _youtube_utils_remove_url_from_archive
+# Description: Removes a specific YouTube video ID from the yt-dlp download archive file.
+#              Based on _remove_url_from_youtube_archive from jellymac.sh.
+# Parameters:
+#   $1 - The YouTube URL (e.g., https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID).
+#   $2 - Path to the yt-dlp download archive file.
+# Returns:
+#   0 if removal was attempted (even if ID not found or archive didn't exist).
+#   1 if critical preconditions are not met (e.g., no URL, no archive file path).
+# Depends on: log_debug_event, log_warn_event (from logging_utils.sh)
+_youtube_utils_remove_url_from_archive() {
+    local url_to_remove="$1"
+    local archive_file_path="$2"
+    local video_id
+
+    if [[ -z "$url_to_remove" ]]; then
+        log_warn_event "YT_ARCHIVE" "No URL provided to remove from archive."
+        return 1
+    fi
+    if [[ -z "$archive_file_path" ]]; then
+        log_warn_event "YT_ARCHIVE" "No archive file path provided for URL '$url_to_remove'."
+        return 1
+    fi
+
+    # Extract video ID from URL using Bash string manipulation
+    case "$url_to_remove" in
+        *watch?v=*)
+            video_id="${url_to_remove#*watch?v=}" # Remove prefix up to "watch?v="
+            video_id="${video_id%%&*}"            # Remove suffix from "&" onwards
+            ;;
+        *youtu.be/*)
+            video_id="${url_to_remove#*youtu.be/}" # Remove prefix up to "youtu.be/"
+            video_id="${video_id%%\?*}"           # Remove suffix from "?" onwards
+            ;;
+        *) video_id="" ;;
+    esac
+
+    if [[ -z "$video_id" ]]; then
+        log_warn_event "YT_ARCHIVE" "Could not extract video ID from URL '$url_to_remove'. Cannot remove from archive."
+        return 1
+    fi
+
+    log_debug_event "YT_ARCHIVE" "Attempting to remove video ID '$video_id' (from URL '$url_to_remove') from archive file '$archive_file_path'."
+
+    if [[ ! -f "$archive_file_path" ]]; then
+        log_debug_event "YT_ARCHIVE" "Archive file '$archive_file_path' does not exist. Nothing to remove for video ID '$video_id'."
+        return 0 # Not an error, just nothing to do
+    fi
+
+    local archive_backup_file="${archive_file_path}.bak"
+    if ! cp "$archive_file_path" "$archive_backup_file"; then
+        log_warn_event "YT_ARCHIVE" "Failed to create backup of archive file '$archive_file_path' to '$archive_backup_file'. Aborting removal."
+        return 1
+    fi
+
+    # Use grep to filter out the line. yt-dlp archive format is typically 'youtube VIDEO_ID'.
+    # Ensure the pattern is specific enough to avoid accidental removals if IDs are substrings of others.
+    # Using a pattern that matches the start of the line for 'youtube' followed by the ID.
+    # Considering yt-dlp might just store the ID for some services, but 'youtube VIDEO_ID' is common.
+    # Let's assume the common 'youtube VIDEO_ID' format for now.
+    if grep -v "^youtube ${video_id}$" "$archive_backup_file" > "$archive_file_path"; then
+        log_debug_event "YT_ARCHIVE" "Successfully updated archive file '$archive_file_path' by removing (if present) ID '$video_id'."
+        local lines_before lines_after
+        lines_before=$(wc -l < "$archive_backup_file")
+        lines_after=$(wc -l < "$archive_file_path")
+        if [[ "$lines_before" -gt "$lines_after" ]]; then
+            log_debug_event "YT_ARCHIVE" "Video ID '$video_id' was found and removed from archive."
+        else
+            log_debug_event "YT_ARCHIVE" "Video ID '$video_id' was not found in archive '$archive_file_path'. File remains unchanged by grep."
+        fi
+    else
+        log_warn_event "YT_ARCHIVE" "Failed to update archive file '$archive_file_path' for video ID '$video_id'. Restoring from backup."
+        if mv "$archive_backup_file" "$archive_file_path"; then
+            log_debug_event "YT_ARCHIVE" "Successfully restored archive file '$archive_file_path' from backup."
+        else
+            log_warn_event "YT_ARCHIVE" "CRITICAL: Failed to restore archive file '$archive_file_path' from backup '$archive_backup_file'. Archive may be corrupted."
+            return 1 # Indicate a more serious failure
+        fi
+        return 1 # Indicate failure to update
+    fi
+
+    if ! rm -f "$archive_backup_file"; then
+        log_warn_event "YT_ARCHIVE" "Failed to remove archive backup file '$archive_backup_file'."
+    fi
+
+    return 0
+}
+
+# --- YouTube File Transfer ---
+
+# Function: _transfer_youtube_video
+# Description: Transfers a processed YouTube video file to its final destination directory,
+#              handling subfolder creation, disk space checks, and transfer errors.
+# Parameters:
+#   $1 - processed_local_file_path: Full path to the video file in LOCAL_DIR_YOUTUBE.
+#   $2 - base_destination_config: Value of DEST_DIR_YOUTUBE (final base directory).
+#   $3 - create_subfolder_config: String "true" or "false" (from YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO).
+#   $4 - original_youtube_url: The original URL of the video (for logging and archive removal on failure).
+#   $5 - download_archive_file_config: Value of DOWNLOAD_ARCHIVE_YOUTUBE (for removing entry on failure).
+# Returns:
+#   0 on successful transfer.
+#   1 on failure (e.g., disk space error, transfer error, critical setup issue).
+# Depends on:
+#   Global config: ERROR_DIR, HISTORY_FILE, SOUND_NOTIFICATION, ENABLE_DESKTOP_NOTIFICATIONS.
+#   Functions from common_utils.sh: check_available_disk_space, quarantine_item,
+#                                   transfer_file_smart, record_transfer_to_history,
+#                                   play_sound_notification, send_desktop_notification.
+#   Functions from youtube_utils.sh: _youtube_utils_remove_url_from_archive.
+#   Functions from logging_utils.sh: log_debug_event, log_user_progress, log_error_event, etc.
+_transfer_youtube_video() {
+    local processed_local_file_path="$1"
+    local base_destination_config="$2"
+    local create_subfolder_config="$3"
+    local original_youtube_url="$4"
+    local download_archive_file_config="$5"
+
+    local func_log_prefix="YT_TRANSFER"
+
+    # --- Parameter Validation ---
+    if [[ -z "$processed_local_file_path" ]]; then log_error_event "$func_log_prefix" "Processed local file path not provided."; return 1; fi
+    if [[ ! -f "$processed_local_file_path" ]]; then log_error_event "$func_log_prefix" "Processed local file '$processed_local_file_path' not found or not a file."; return 1; fi
+    if [[ -z "$base_destination_config" ]]; then log_error_event "$func_log_prefix" "Base destination directory (DEST_DIR_YOUTUBE) not configured."; return 1; fi
+    if [[ -z "$original_youtube_url" ]]; then log_error_event "$func_log_prefix" "Original YouTube URL not provided."; return 1; fi
+    if [[ -z "$download_archive_file_config" ]]; then log_error_event "$func_log_prefix" "Download archive file path (DOWNLOAD_ARCHIVE_YOUTUBE) not configured."; return 1; fi
+
+    log_debug_event "$func_log_prefix" "Initiating transfer for: '$processed_local_file_path'"
+    log_debug_event "$func_log_prefix" "Base Dest: '$base_destination_config', Subfolder: '$create_subfolder_config', URL: '$original_youtube_url'"
+
+    local final_filename
+    final_filename=$(basename "$processed_local_file_path")
+    local final_filename_no_ext="${final_filename%.*}"
+
+    local target_directory
+    local final_file_destination_path
+
+    # --- 1. Determine Final Destination Path ---
+    if [[ "$create_subfolder_config" == "true" ]]; then
+        # Sanitize final_filename_no_ext for directory name (basic: replace / or \\ with _)
+        local safe_subfolder_name
+        safe_subfolder_name="${final_filename_no_ext//[\\/]/_}"
+        target_directory="${base_destination_config}/${safe_subfolder_name}"
+        final_file_destination_path="${target_directory}/${final_filename}"
+        log_debug_event "$func_log_prefix" "Subfolder creation enabled. Target directory: '$target_directory'"
+    else
+        target_directory="$base_destination_config"
+        final_file_destination_path="${target_directory}/${final_filename}"
+        log_debug_event "$func_log_prefix" "Subfolder creation disabled. Target directory: '$target_directory'"
+    fi
+    log_debug_event "$func_log_prefix" "Final destination path determined: '$final_file_destination_path'"
+
+    # --- 2. Pre-Transfer Checks ---
+    # --- 2a. Disk Space Check ---
+    local file_size_kb
+    file_size_kb=$(du -sk "$processed_local_file_path" | awk '{print $1}')
+    if ! [[ "$file_size_kb" =~ ^[0-9]+$ ]]; then
+        log_error_event "$func_log_prefix" "Could not determine size of '$processed_local_file_path'. Aborting transfer."
+        quarantine_item "$processed_local_file_path" "YouTube transfer - unknown source size" "$func_log_prefix"
+        return 1
+    fi
+    log_debug_event "$func_log_prefix" "Source file size: '$file_size_kb' KB."
+
+    # check_available_disk_space expects destination directory, not full file path
+    if ! check_available_disk_space "$target_directory" "$file_size_kb"; then
+        log_error_event "$func_log_prefix" "Insufficient disk space at '$target_directory' for '$final_filename' (${file_size_kb}KB)."
+        # common_utils.check_available_disk_space logs details. We quarantine the source.
+        quarantine_item "$processed_local_file_path" "YouTube transfer - insufficient disk space at destination" "$func_log_prefix"
+        return 1
+    fi
+
+    # --- 2b. Create Target Directory (if subfolder enabled and directory doesn't exist) ---
+    if [[ "$create_subfolder_config" == "true" ]]; then
+        if [[ ! -d "$target_directory" ]]; then
+            log_user_progress "YouTube" "Creating subfolder: '$target_directory'"
+            if ! mkdir -p "$target_directory"; then
+                log_error_event "$func_log_prefix" "Failed to create target subfolder '$target_directory'. Check permissions."
+                # Don't quarantine source yet, as the issue is with destination structure creation.
+                return 1
+            fi
+            log_debug_event "$func_log_prefix" "Successfully created target subfolder: '$target_directory'"
+        fi
+    fi # If not creating subfolders, base_destination_config should already exist (checked by preflight)
+
+    # --- 3. Perform File Transfer --- #
+    log_user_progress "YouTube" "🚀 Transferring '$final_filename' to library..."
+    
+    local transfer_exit_code
+    # transfer_file_smart (from common_utils.sh) handles local vs network, retries for network,
+    # and removes source on success for rsync.
+    transfer_file_smart "$processed_local_file_path" "$final_file_destination_path" "YouTube"
+    transfer_exit_code=$?
+
+    # --- 4. Post-Transfer Handling ---
+    if [[ "$transfer_exit_code" -eq 0 ]]; then
+        log_user_success "YouTube" "✅ Successfully transferred '$final_filename' to '$final_file_destination_path'"
+        record_transfer_to_history "YouTube: ${original_youtube_url:0:70}... -> ${final_file_destination_path}"
+        play_sound_notification "task_success" "YouTube"
+        send_desktop_notification "JellyMac: YouTube Transferred" "Video '$final_filename' moved to library."
+        return 0
+    else
+        log_error_event "$func_log_prefix" "Transfer of '$final_filename' to '$final_file_destination_path' failed with exit code ${transfer_exit_code}."
+        play_sound_notification "task_error" "YouTube"
+
+        log_user_info "YouTube" "Attempting to remove '$original_youtube_url' from download archive to allow retry."
+        _youtube_utils_remove_url_from_archive "$original_youtube_url" "$download_archive_file_config"
+        # _youtube_utils_remove_url_from_archive logs its own success/failure.
+
+        # If the source file still exists after a failed transfer, quarantine it.
+        # transfer_file_smart with rsync might leave partials at dest and source intact on some errors.
+        # mv (local transfer in transfer_file_smart) would mean source is gone or still there.
+        if [[ -f "$processed_local_file_path" ]]; then
+            log_warn_event "$func_log_prefix" "Source file '$processed_local_file_path' still exists after failed transfer. Quarantining."
+            quarantine_item "$processed_local_file_path" "YouTube transfer failure" "$func_log_prefix"
+        else
+            log_debug_event "$func_log_prefix" "Source file '$processed_local_file_path' does not exist after failed transfer (already moved or removed by transfer attempt)."
+        fi
+        return 1
+    fi
+}
+
 # --- YouTube Command Construction ---
 
 # Function: _build_ytdlp_single_video_args
