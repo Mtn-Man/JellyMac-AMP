@@ -13,7 +13,7 @@
 #
 # Author: Eli Sher (Mtn_Man)
 # Version: v0.2.3
-# Last Updated: 2025-06-08
+# Last Updated: 2025-06-10
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -624,6 +624,7 @@ check_and_resume_youtube_queue() {
 # Parameters: None
 # Returns: None
 # Side Effects: Cleans up partial files, removes from archive, re-queues URL
+# Dev note: We make heavy use of shellcheck disable=SC2317 to prevent false positives
 #==============================================================================
 _handle_interrupted_youtube_download() {
     # shellcheck disable=SC2317
@@ -668,6 +669,7 @@ _handle_interrupted_youtube_download() {
     # shellcheck disable=SC2317
     # 5. Clear tracking variables
     _ACTIVE_YOUTUBE_URL=""
+    # shellcheck disable=SC2317
     _ACTIVE_YOUTUBE_PID=""
 }
 
@@ -690,6 +692,7 @@ _remove_url_from_youtube_archive() {
     # shellcheck disable=SC2317
     # Extract video ID from URL using Bash 3.2 compatible method
     local video_id=""
+    # shellcheck disable=SC2317
     case "$url_to_remove" in
         *"watch?v="*)
             video_id="${url_to_remove#*watch?v=}"  # Remove everything before "watch?v="
@@ -747,10 +750,18 @@ _check_clipboard_youtube() {
         local trimmed_cb; trimmed_cb="$(echo -E "${current_cb_content}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
         
         case "$trimmed_cb" in
-            https://www.youtube.com/watch\?v=*|https://youtu.be/*)
+            https://www.youtube.com/watch\?v=*|https://youtu.be/*|https://www.youtube.com/playlist\?list=*)
                 # Check if this URL is already being processed or queued
                 if is_item_being_processed "$trimmed_cb"; then
                     log_user_info "JellyMac" "YouTube URL already being processed: '${trimmed_cb:0:70}...'"
+                    return
+                fi
+                
+                # Check if this is a playlist URL
+                if [[ "$trimmed_cb" == *"playlist?list="* ]]; then
+                    log_user_info "JellyMac" "📋 Detected YouTube playlist: '${trimmed_cb:0:70}...'"
+                    play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX"
+                    log_user_info "JellyMac" "🚧 Playlist processing not yet implemented - coming soon!"
                     return
                 fi
                 

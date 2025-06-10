@@ -61,6 +61,10 @@ TRANSMISSION_REMOTE_AUTH="${TRANSMISSION_REMOTE_AUTH:-}"
 TORRENT_CLIENT_CLI_PATH="${TORRENT_CLIENT_CLI_PATH:-}"
 # STATE_DIR is expected to be set by jellymac_config.sh
 
+# Initialize logging system variables for set -u compatibility
+CURRENT_LOG_FILE_PATH="${CURRENT_LOG_FILE_PATH:-}"
+LAST_LOG_DATE_CHECKED="${LAST_LOG_DATE_CHECKED:-}"
+
 # shellcheck source=../lib/common_utils.sh
 # shellcheck disable=SC1091
 source "${LIB_DIR}/common_utils.sh" # For find_executable, record_transfer_to_history, play_sound_notification
