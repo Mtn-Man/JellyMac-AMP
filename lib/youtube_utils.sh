@@ -513,6 +513,232 @@ _handle_ytdlp_sabr_retry() {
     return "$final_exit_code" # Return original or last retry exit code
 }
 
+# --- YouTube File Discovery ---
+
+# Function: _find_downloaded_video_file
+# Description: Attempts to find the downloaded video file after yt-dlp execution.
+#              Prioritizes parsing filename from yt-dlp stdout if --print filename was used.
+#              Falls back to finding the newest video file in the directory.
+# Parameters:
+#   $1 - Directory to search (e.g., LOCAL_DIR_YOUTUBE).
+#   $2 - yt-dlp exit code from the download attempt.
+#   $3 - Content of yt-dlp's stdout (expected to contain filename if --print filename was used).
+#   $4 - Content of yt-dlp's stderr.
+# Returns:
+#   Prints the full path of the found video file to stdout on success.
+#   Prints "ALREADY_IN_ARCHIVE" to stdout if archive message detected.
+#   Prints nothing and returns non-zero on failure to find an expected file.
+# Depends on: log_debug_event, log_warn_event
+_find_downloaded_video_file() {
+    local search_dir="$1"
+    local ytdlp_exit_code="$2"
+    local stdout_content="$3"
+    local stderr_content="$4"
+
+    local combined_output="${stdout_content}${stderr_content}" # Combine for easier searching
+
+    # Check for "already in archive" messages first
+    if [[ "$combined_output" == *"already been recorded in the archive"* ]]; then
+        log_debug_event "YT_FIND" "yt-dlp output indicates video is already in archive."
+        printf "%s\n" "ALREADY_IN_ARCHIVE"
+        return 0 # Successful indication, not an error
+    fi
+
+    # Proceed if exit code suggests success or a max-downloads scenario where a file might exist
+    if [[ "$ytdlp_exit_code" -eq 0 ]] || \
+       { [[ "$ytdlp_exit_code" -eq 101 ]] && \
+         { [[ "$combined_output" == *"[download] Overwriting existing file"* || \
+            "$combined_output" == *"--max-downloads"*"reached"* || \
+            "$combined_output" == *"has already been downloaded"* ]] || \
+           [[ -z "$combined_output" ]] ;} ;} ; then
+
+        log_debug_event "YT_FIND" "yt-dlp exit code $ytdlp_exit_code. Attempting to find downloaded file in '$search_dir'."
+        
+        if [[ ! -d "$search_dir" ]]; then
+            log_warn_event "YT_FIND" "Search directory '$search_dir' does not exist."
+            return 1
+        fi
+
+        # Add a small delay for file system to settle, as in original script
+        sleep 2
+
+        # Primary Method: Parse filename from stdout (if --print filename was used)
+        # The filename is expected to be the last non-empty line from yt-dlp's stdout.
+        local printed_filename
+        # Get the last non-empty line from stdout_content
+        local last_non_empty_line=""
+        local current_line
+        while IFS= read -r current_line; do
+            if [[ -n "$current_line" ]]; then # Check if line is not empty
+                last_non_empty_line="$current_line"
+            fi
+        done <<< "$stdout_content"
+        printed_filename="$last_non_empty_line"
+
+        if [[ -n "$printed_filename" ]]; then
+            # Construct full path. yt-dlp --print filename usually prints just the basename.
+            local potential_file_from_stdout="${search_dir}/${printed_filename}"
+            if [[ -f "$potential_file_from_stdout" ]]; then
+                log_debug_event "YT_FIND" "Successfully found video file via --print filename: '$potential_file_from_stdout'"
+                printf "%s\n" "$potential_file_from_stdout"
+                return 0
+            else
+                log_debug_event "YT_FIND" "Filename '$printed_filename' from stdout not found as '$potential_file_from_stdout'. Will attempt fallback."
+            fi
+        else
+            log_debug_event "YT_FIND" "No filename found in yt-dlp stdout. Will attempt fallback to find newest file."
+        fi
+
+        # Fallback Method: Find newest video file in the directory
+        log_debug_event "YT_FIND" "Fallback: Attempting to find newest common video file in '$search_dir'."
+        local potential_file_full_path_fallback
+        local find_ls_exit_code
+
+        set +e # Allow capturing find/ls exit code
+        potential_file_full_path_fallback=$(find "${search_dir}" -maxdepth 1 -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.webm" -o -iname "*.mov" -o -iname "*.avi" -o -iname "*.flv" \) -print0 2>/dev/null | xargs -0 -r ls -t 2>/dev/null | head -n 1)
+        find_ls_exit_code=$?
+        set -e
+        
+        if [[ "$find_ls_exit_code" -eq 0 && -n "$potential_file_full_path_fallback" ]]; then
+            # If find/ls produced a relative path, make it absolute based on search_dir
+            if [[ "$potential_file_full_path_fallback" != /* ]]; then
+                potential_file_full_path_fallback="${search_dir}/${potential_file_full_path_fallback}"
+            fi
+
+            if [[ -f "$potential_file_full_path_fallback" ]]; then
+                log_debug_event "YT_FIND" "Fallback: Found potential newest video file: '$potential_file_full_path_fallback'"
+                printf "%s\n" "$potential_file_full_path_fallback"
+                return 0
+            else
+                log_warn_event "YT_FIND" "Fallback: Path '$potential_file_full_path_fallback' from find/ls is not a valid file."
+                return 1
+            fi
+        elif [[ "$find_ls_exit_code" -ne 0 && "$find_ls_exit_code" -ne 123 ]]; then # 123 can be xargs if no input
+             log_warn_event "YT_FIND" "Fallback: Command to find newest video file failed (exit code $find_ls_exit_code)."
+             return 1
+        else # Includes find_ls_exit_code == 123 (no files found by find)
+            log_warn_event "YT_FIND" "Fallback: No common video files found in '$search_dir' after yt-dlp run (exit code $ytdlp_exit_code)."
+            return 1
+        fi
+
+    elif [[ "$ytdlp_exit_code" -eq 101 ]]; then
+        # Handle other exit 101 cases (not max-downloads, not archive hit that was caught above)
+        log_warn_event "YT_FIND" "yt-dlp exited 101 (unhandled reason, not archive hit or clear max-downloads). No file search attempted. Combined output: $combined_output"
+        return 1
+    else
+        # yt-dlp failed with an error other than 0 or 101
+        log_debug_event "YT_FIND" "yt-dlp failed with exit code $ytdlp_exit_code. No file search attempted."
+        return 1 # No file expected
+    fi
+}
+
+# --- YouTube Filename Processing ---
+
+# Function: _normalize_and_rename_video_file
+# Description: Normalizes a video filename by converting underscores to spaces,
+#              fixing common English contractions, and truncating if too long.
+#              Performs actual file renames on the filesystem.
+# Parameters:
+#   $1 - Full path to the downloaded video file.
+#   $2 - (Optional) Maximum filename length. Defaults to 200.
+# Returns:
+#   Prints the final full path of the (potentially renamed) file to stdout.
+#   Returns 0 on success (even if some renames failed but a valid path is returned).
+#   Returns 1 if the input path is invalid or a critical error occurs.
+# Depends on: log_debug_event, log_warn_event, log_user_progress (from logging_utils.sh)
+_normalize_and_rename_video_file() {
+    local current_file_full_path="$1"
+    local max_len=${2:-200} # Default max filename length
+
+    if [[ -z "$current_file_full_path" || ! -f "$current_file_full_path" ]]; then
+        log_warn_event "YT_NORMALIZE" "Invalid or non-existent file provided for normalization: '$current_file_full_path'"
+        printf "%s\n" "$current_file_full_path" # Return original path
+        return 1
+    fi
+
+    local download_dir
+    download_dir=$(dirname "$current_file_full_path")
+    local current_filename
+    current_filename=$(basename "$current_file_full_path")
+    local original_filename_for_log="$current_filename"
+
+    local file_ext="${current_filename##*.}"
+    local filename_no_ext="${current_filename%.*}"
+
+    # Step 1: Normalization (Underscores, Possessives, Contractions)
+    log_debug_event "YT_NORMALIZE" "Normalizing filename: '$current_filename'"
+    local filename_with_spaces_initial
+    filename_with_spaces_initial=$(echo "$filename_no_ext" | tr '_' ' ')
+
+    local filename_corrected_possessive_s
+    filename_corrected_possessive_s=$(echo "$filename_with_spaces_initial" | sed -e 's/ s /s /g' -e 's/ s$/s/')
+
+    local filename_with_fixed_contractions
+    filename_with_fixed_contractions=$(echo "$filename_corrected_possessive_s" | \
+        sed -E "
+            s/([[:alpha:]]+) re /\1're /g;
+            s/([[:alpha:]]+) ll /\1'll /g;
+            s/([[:alpha:]]+) ve /\1've /g;
+            s/([[:alpha:]]+) m /\1'm /g;
+            s/([[:alpha:]]+) d /\1'd /g;
+            s/([[:alpha:]]+) t /\1't /g;
+        ")
+
+    local normalized_filename_no_ext="$filename_with_fixed_contractions"
+    local normalized_filename="${normalized_filename_no_ext}.${file_ext}"
+
+    if [[ "$current_filename" != "$normalized_filename" ]]; then
+        log_user_progress "YouTube" "Correcting filename format: '$current_filename' -> '$normalized_filename'"
+        local normalized_full_path="${download_dir}/${normalized_filename}"
+        if mv "$current_file_full_path" "$normalized_full_path"; then
+            log_debug_event "YT_NORMALIZE" "Successfully renamed (normalization) to '$normalized_filename'"
+            current_file_full_path="$normalized_full_path"
+            current_filename="$normalized_filename"
+        else
+            log_warn_event "YT_NORMALIZE" "Failed to rename (normalization) '$current_filename' to '$normalized_filename'. Proceeding with '$current_filename'."
+            # Keep current_file_full_path and current_filename as they are
+        fi
+    else
+        log_debug_event "YT_NORMALIZE" "Filename '$current_filename' does not require underscore/contraction normalization."
+    fi
+
+    # Step 2: Filename Length Truncation
+    if [[ ${#current_filename} -gt $max_len ]]; then
+        log_user_progress "YouTube" "Filename too long (${#current_filename} chars), truncating to $max_len chars: '$current_filename'"
+        
+        local trunc_file_ext="${current_filename##*.}"
+        local trunc_filename_no_ext="${current_filename%.*}"
+        local available_len_for_name=$((max_len - ${#trunc_file_ext} - 1)) # -1 for the dot
+
+        local truncated_basename_no_ext
+        if [[ $available_len_for_name -lt 3 ]]; then # Not enough space for ellipsis
+            truncated_basename_no_ext="${trunc_filename_no_ext:0:$available_len_for_name}"
+        else
+            truncated_basename_no_ext="${trunc_filename_no_ext:0:$((available_len_for_name - 3))}..."
+        fi
+        
+        local truncated_filename="${truncated_basename_no_ext}.${trunc_file_ext}"
+        local truncated_full_path="${download_dir}/${truncated_filename}"
+
+        if mv "$current_file_full_path" "$truncated_full_path"; then
+            log_debug_event "YT_NORMALIZE" "Successfully renamed (truncation): '$current_filename' -> '$truncated_filename'"
+            current_file_full_path="$truncated_full_path"
+            # current_filename="$truncated_filename" # Not strictly needed as we print current_file_full_path at the end
+        else
+            log_warn_event "YT_NORMALIZE" "Failed to rename (truncation) '$current_filename' to '$truncated_filename'. Proceeding with '$current_filename'."
+            # current_file_full_path remains unchanged from before truncation attempt
+        fi
+    else
+        log_debug_event "YT_NORMALIZE" "Filename length OK (${#current_filename} chars, max: $max_len). No truncation needed."
+    fi
+
+    log_debug_event "YT_NORMALIZE" "Final processed file path for '$original_filename_for_log' is '$current_file_full_path'"
+    printf "%s\n" "$current_file_full_path"
+    return 0
+}
+
+# --- YouTube Command Construction ---
+
 # Function: _build_ytdlp_single_video_args
 # Description: Constructs a common set of yt-dlp arguments for downloading a
 #              single YouTube video. Arguments are printed to stdout, one per line.
