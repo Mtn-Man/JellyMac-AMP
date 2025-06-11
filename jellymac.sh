@@ -919,7 +919,10 @@ process_drop_folder() {
         log_warn_event "JellyMac" "Drop Folder ('${DROP_FOLDER:-N/A}') not configured or found. Skipping scan."
         return
     fi
+    if [[ "${_LAST_DROP_SCAN_HAD_ITEMS:-false}" == "true" ]] || [[ $(( $(date +%s) % 300 )) -eq 0 ]]; then
     log_debug_event "JellyMac" "Scanning Drop Folder: $DROP_FOLDER"
+    fi 
+    local items_processed=0
     local find_results_file 
     if [[ ! -d "$STATE_DIR" ]]; then 
         mkdir -p "$STATE_DIR" || { log_error_event "JellyMac" "Failed to create STATE_DIR '$STATE_DIR' for temp scan file. Cannot scan DROP_FOLDER."; exit 1; }
@@ -993,11 +996,19 @@ process_drop_folder() {
             
             log_user_info "JellyMac" "🚀 Launched Media Processor (PID $child_pid). Active processors: $((p_count+1))."
             send_desktop_notification "JellyMac: Processing" "Item: ${item_basename:0:60}..."
+            items_processed=$((items_processed + 1))
         else
             log_warn_event "JellyMac" "🚦 Max concurrent processors (${MAX_CONCURRENT_PROCESSORS:-2}) reached. Deferring processing for '$item_basename' from DROP_FOLDER."
         fi
     done < "$find_results_file" 
     rm -f "$find_results_file" 
+
+    # Track if this scan found items for conditional logging
+    if [[ $items_processed -gt 0 ]]; then
+        _LAST_DROP_SCAN_HAD_ITEMS="true"
+    else
+        _LAST_DROP_SCAN_HAD_ITEMS="false"
+    fi
 }
 
 #==============================================================================
@@ -1195,7 +1206,6 @@ while true; do
     fi
     process_drop_folder         
     
-    log_debug_event "JellyMac" "Main loop iter done. Sleeping ${MAIN_LOOP_SLEEP_INTERVAL:-15}s."
     sleep "${MAIN_LOOP_SLEEP_INTERVAL:-15}"
 done
 exit 0
