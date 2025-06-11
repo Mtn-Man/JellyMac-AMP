@@ -4,7 +4,7 @@
 
 Transform media chaos into organized bliss with just a copy or a drop.
 
-JellyMac is a simple but powerful automation suite that makes media management easier. Copy a YouTube URL to your clipboard, copy a magnet link, or drop a file in your designated folder - then walk away. Your media appears in your library, perfectly organized, without lifting another finger.
+JellyMac is a simple but powerful automation suite that makes media management easier. Copy a YouTube URL to your clipboard, copy a magnet link, or drop a file in your designated folder - then walk away. Your media downloads and appears in your library, perfectly organized, without lifting another finger.
 
 ## THE MAGIC
 
@@ -13,15 +13,19 @@ JellyMac is a simple but powerful automation suite that makes media management e
 - **Copy a YouTube URL** to your clipboard → Video downloads and organizes automatically
 - **Copy a magnet link** to your clipboard → Torrent starts downloading via Transmission  
 - **Drop or download media files** to your drop folder → Movies and TV shows get sorted with a clean name
+- **Intelligent duplicate prevention** → Never waste bandwidth on already-downloaded content
 - **Zero manual work** → Everything goes to the right place with proper names, server is updated
 
 ## KEY FEATURES
 
-- Clipboard monitoring for YouTube/magnet links
-- Automatic file organization and naming
-- Network-resilient transfers with retry logic  
-- Direct media server integration (Jellyfin, Plex, etc.)
-- Native macOS notifications and feedback
+- **Intelligent duplicate prevention** - Cross-session memory prevents re-downloading content
+- **Complete automation chains** - Magnet → Download → Organization → Library integration
+- **Clipboard monitoring** - YouTube/magnet links processed automatically from clipboard
+- **Network-resilient transfers** - Smart retry logic and connection validation
+- **Associated file handling** - Subtitles, metadata, and extras automatically organized
+- **Production-ready logging** - Comprehensive audit trails and debugging capabilities
+- **Direct media server integration** - Jellyfin, Plex auto-scanning with granular controls
+- **Native macOS notifications** - Visual and audio feedback for all operations
 
 ## PERFECT FOR
 
@@ -35,6 +39,24 @@ JellyMac is a simple but powerful automation suite that makes media management e
 
 Your Mac runs JellyMac, but your media server can be anywhere - Linux, Windows, NAS, cloud instance. As long as your Mac can reach the media folders over your network, you're golden. **No server-side installation required.**
 
+## SMART AUTOMATION
+
+### Duplicate Prevention
+- ✅ **Cross-session memory** - Remembers downloads across restarts and system reboots
+- ✅ **Bandwidth optimization** - Never re-downloads the same YouTube videos or torrents
+- ✅ **Archive persistence** - Tracks video IDs and torrent hashes automatically
+
+### Network Intelligence  
+- ✅ **Auto-mount detection** - Validates network share availability before transfers
+- ✅ **Retry logic** - Handles temporary network issues and connection drops gracefully
+- ✅ **Path validation** - Ensures destinations are accessible before processing begins
+
+### Complete Media Pipeline
+- ✅ **File stability checking** - Waits for downloads to complete fully before processing
+- ✅ **Associated file handling** - Moves subtitles, NFO files, and extras together automatically
+- ✅ **Format standardization** - Cleans filenames for optimal media server compatibility
+- ✅ **Background processing** - Non-blocking operations let you continue working
+
 ## INSTALLATION
 
 To get started with JellyMac, open your Terminal app. You can copy and paste (Cmd+C and Cmd+V) the following commands one at a time.
@@ -47,6 +69,8 @@ First, install Homebrew by pasting this command and following the on-screen inst
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
+**Important:** After Homebrew installs, it will show you commands to add it to your PATH. Copy and run those exact commands before continuing.
+
 Then, install Git using Homebrew:
 
 ```bash
@@ -58,7 +82,7 @@ brew install git
 Clone the JellyMac repository from GitHub:
 
 ```bash
-git clone https://github.com/Mtn-Man/JellyMac.git JellyMac
+git clone https://github.com/Mtn-Man/JellyMac.git
 ```
 
 Navigate into the JellyMac directory and make the necessary scripts executable:
@@ -76,35 +100,27 @@ Now, start JellyMac:
 ```
 
 On its first run, JellyMac initiates an interactive setup wizard that will:
-- Offer to create a default configuration file (lib/jellymac_config.sh) if it's missing
-- Guide you through installing any missing helper programs (like yt-dlp, transmission-cli, ffmpeg, or flock)
-- Create necessary operational folders with sensible defaults
-- Offer to automatically configure Transmission for seamless magnet link automation
+- **Smart dependency management** - Choose permanent auto-install or one-time setup
+- **Complete Transmission integration** - Background service + automatic download folder configuration for seamless magnet → library workflow
+- **Media player optimization** - IINA setup for enhanced codec support
+- **Network path validation** - Ensures media server connections work properly
+- **Automatic directory creation** - Sets up all required folders with proper permissions
 
-### Step 4: Customize Your Configuration (Recommended)
+### Step 4: Configure Your Setup
 
-After the initial setup, JellyMac creates lib/jellymac_config.sh. It's highly recommended to edit this file to match your setup, especially if you use a media server or network storage.
+After the initial setup, JellyMac creates `lib/jellymac_config.sh` and offers two options:
 
-To edit:
-1. Navigate to the lib folder inside your JellyMac directory
-2. Open lib/jellymac_config.sh with a text editor (e.g., nano, TextEdit)
-3. Key paths to update include:
-   - DEST_DIR_MOVIES: Your main movies library folder
-   - DEST_DIR_SHOWS: Your main TV shows library folder
-   - DEST_DIR_YOUTUBE: Where YouTube downloads should go
-   - DROP_FOLDER: The folder JellyMac will monitor
-   
-   Refer to Getting_Started.txt or Configuration_Guide.txt for details on all options
-4. Save the file. JellyMac will use these new settings the next time it runs or processes media
+**Option 1: Edit Configuration Now**
+- Choose this if you use a media server, NAS, or custom library locations
+- JellyMac opens the config file in TextEdit for immediate customization
+- Save your changes and restart JellyMac to use your custom settings
 
-### Zero-Config Setup (for Local Use)
+**Option 2: Use Default Local Setup**
+- Choose this for simple local media organization on your Mac
+- Uses standard paths: `~/Movies/Movies`, `~/Movies/Shows`, `~/Downloads/JellyDrop`
+- You can always edit `lib/jellymac_config.sh` later if your needs change
 
-If you're using JellyMac only for local media on your Mac and don't have a separate media server, the default paths created by the setup wizard often work out of the box:
-- Movies are typically organized in `~/Movies/Movies`
-- TV shows in `~/Movies/Shows` 
-- The drop folder is usually `~/Downloads/JellyDrop`
-
-You can often press Enter through most setup prompts for this scenario.
+Refer to [`Getting_Started.txt`](Getting_Started.txt) or [`Configuration_Guide.txt`](Configuration_Guide.txt) for details on all configuration options.
 
 ---
 
@@ -121,7 +137,9 @@ Dependencies like yt-dlp, ffmpeg, transmission-cli, and flock will be offered to
 
 ## DOCUMENTATION
 
-See [`Getting_Started.txt`](Getting_Started.txt) for detailed setup instructions, configuration options, and troubleshooting guidance.
+- [`Getting_Started.txt`](Getting_Started.txt) - Detailed setup and configuration
+- [`Quick_Reference.txt`](Quick_Reference.txt) - Common tasks and commands
+- [`Configuration_Guide.txt`](Configuration_Guide.txt) - Advanced customization options
 
 ---
 

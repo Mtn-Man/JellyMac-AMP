@@ -21,6 +21,19 @@ these items — downloading, renaming, organizing, transferring (if needed)
 This enables full end-to-end automation for media additions to your library
 with just 2 clicks once JellyMac is running.
 
+TABLE OF CONTENTS
+-----------------
+🏠 COMPATIBILITY ......................... Line 37
+🔧 FUNCTIONALITY ......................... Line 50  
+🔒 BEFORE YOU START ...................... Line 95
+⚙️ INSTALLATION .......................... Line 138
+🚀 FIRST RUN EXPERIENCE .................. Line 216
+📱 DAILY USAGE ........................... Line 253
+💡 PLAYBACK SUGGESTIONS .................. Line 274
+🌐 NETWORK SETUP ......................... Line 319
+🛠️ TROUBLESHOOTING ....................... Line 290
+📋 ROADMAP AND FUTURE PLANS .............. Line 362
+
 COMPATIBILITY
 ----------------
 JellyMac runs on your Mac to automate your media pipeline.
@@ -127,43 +140,42 @@ INSTALLATION
   
   1. Get Homebrew and JellyMac:
 
-       Open Terminal and run each command one at a time (follow the prompts to install Homebrew first):
-
-         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+       Open Terminal and run each command one at a time (follow the prompts to install Homebrew first):         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        
+         Important: After Homebrew installs, it will show you commands to add it to your PATH. 
+         Copy and run those exact commands before continuing.
         
          brew install git
 
-         git clone https://github.com/Mtn-Man/JellyMac.git JellyMac
+         git clone https://github.com/Mtn-Man/JellyMac.git
 
          cd JellyMac && chmod +x jellymac.sh bin/*.sh
 
+  2. First Run Setup:
 
-  2. Configure your paths:
+       cd ~/JellyMac && ./jellymac.sh
 
-  IMPORTANT: Edit jellymac_config.sh to set your actual media library paths:
+       JellyMac's interactive setup wizard will:
+       • Create your configuration file automatically
+       • Offer to open it in TextEdit for immediate customization
+       • Check for missing dependencies and offer to install them
+       • Set up Transmission service for magnet link automation
+       • Validate your configured paths and create missing directories
+       • Configure complete automation chains
 
-         - DROP_FOLDER: Where you'll drop new media files
-         - DEST_DIR_MOVIES: Your movies folder location
-         - DEST_DIR_SHOWS: Your TV shows folder location  
-         - DEST_DIR_YOUTUBE: Where YouTube downloads go
-         
-       Default paths (edit for your own media library locations or use the default options):
+       Configuration Options:
+       
+       Option 1: Edit Configuration Now
+       - Choose this for media servers, NAS, or custom locations
+       - JellyMac opens the config file in TextEdit immediately
+       - Edit your paths, save, and restart JellyMac
+       
+       Option 2: Use Default Local Setup  
+       - Choose this for simple local media organization
+       - Uses: ~/Movies/Movies, ~/Movies/Shows, ~/Downloads/JellyDrop
+       - Can be customized later if needed
 
-         DROP_FOLDER="$HOME/Downloads/JellyDrop"
-         DEST_DIR_MOVIES="$HOME/Movies/Movies"
-         DEST_DIR_SHOWS="$HOME/Movies/Shows"
-         DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"
-         
-       If you chose not to do so in setup, to edit the configuration file:
-
-         1. Open Finder
-         2. Press Cmd+Shift+H to open your Home folder (or Go → Home)
-         3. Navigate to JellyMac → lib folder
-         4. Double-click jellymac_config.sh to open in TextEdit
-         5. Find and edit the file paths to match your setup
-         6. Save the file (Cmd+S) and close TextEdit
-
-  3. Configure Jellyfin integration for auto library syncing (optional):
+  3. Manual Configuration (if needed later):
 
          JELLYFIN_SERVER="http://your-server-ip:8096" (usually looks like 192.168.0.100:8096 or similar)
          JELLYFIN_API_KEY="your-jellyfin-api-key"
@@ -193,10 +205,12 @@ The interactive setup wizard will:
 
 • Offer to copy the example configuration file if you have not already done so
 • Offer to open the new config file so you can make changes right away
-• Check for missing dependencies and offer to install them
-• Validate your configured paths and create missing directories if necessary
-• Set up Transmission service for magnet links
-• Offer automatic Transmission download location configuration enabling full automation
+• Provide smart dependency management - choose permanent auto-install or one-time setup
+• Configure complete Transmission integration - background service + automatic download 
+  folder configuration for seamless magnet → library workflow
+• Offer set up of enhanced default media player  - IINA setup for updated file playback and codec support
+• Validate network paths - ensures media server connections work properly
+• Create directories automatically - sets up all required folders with proper permissions
 
 
 FIRST RUN EXPERIENCE
@@ -260,23 +274,40 @@ Once setup is complete:
 PLAYBACK SUGGESTIONS
 --------------------
 
-For local video playback, the default QuickTime Player has limited support
-for modern video codecs (e.g. HEVC/H.265), which will cause playback issues
-with JellyMac's YouTube downloads.
+For local video playback, the default QuickTime Player lacks support
+for modern video codecs (e.g. HEVC/VP9/AV1), which will likely cause playback issues
+with many of JellyMac's YouTube downloads.
 
-Instead, we recommend using Jellyfin Server to host your media locally (or remotely on another computer),
-then play back in any web browser, and on any computer on your network.
+Enhanced Media Player Setup:
+During JellyMac's first run, you'll be offered the option to install and configure
+IINA as your default media player. IINA provides excellent codec support and handles
+modern video formats that QuickTime Player cannot play.
 
-Find out more: https://jellyfin.org
+If you accept IINA installation:
+- JellyMac will install IINA via Homebrew
+- IINA will be set as the default player for media files
+- Enhanced codec support for all downloaded content
+
+If you decline IINA installation:
+You have several excellent alternatives for playing modern video formats:
+
+Primary Recommendation:
+- Jellyfin Server: Host your media locally or remotely, then play back 
+  in any web browser on any computer on your network.
+  Find out more: https://jellyfin.org
 
 Alternatively, there are many reliable, free video players for macOS,
 including:
 
-  - Infuse: https://firecore.com/infuse
-  - IINA:   https://www.iina.tv/               or      brew install --cask iina
+  - Infuse: https://firecore.com/infuse        (can sync with a Jellyfin or Plex library)
   - VLC:    https://www.videolan.org/vlc/      or      brew install --cask vlc
+  - IINA:   https://www.iina.tv/               or      brew install --cask iina
+  - and others...
 
 In a pinch, Google Chrome can also play many media formats, if you already have that installed.
+
+Note: If you initially declined IINA during setup, you can always install it later
+using: brew install --cask iina
 
 ADVANCED: Sonarr/Radarr Integration
 -----------------------------------
@@ -331,6 +362,7 @@ TROUBLESHOOTING
              (usually `/opt/homebrew/bin`) is in your PATH.
            * Let JellyMac's first-run interactive setup
              install them, or install them manually.
+           * Ensure installed homebrew programs are updated, run: brew upgrade && brew update
 
   2. View the Logs:
        Logs are crucial for diagnosing issues.
@@ -344,20 +376,19 @@ TROUBLESHOOTING
        - Re-run: `./jellymac.sh`
          (It will re-validate dependencies and paths).
 
+  
+
 
 ROADMAP AND FUTURE PLANS
 ------------------------
 
-JellyMac is in active development.
-Planned features include:
-  - Movie/TV Show season/collection/pack handling.
-  - YouTube playlist support.
-  - Enhanced metadata extraction.
-  - Improved file recognition and filtering.
-  - GUI version
+JellyMac is in ongoing active development.
+Planned future features include:
 
-Current development is focused on polishing existing
-functionality.
+  - YouTube playlist support.
+  - Movie/TV Show season/collection/pack handling.
+  - Improved file recognition and filtering.
+  - Enhanced and user friendly GUI (graphical) version in Swift (maybe menu bar app?)
 
 Your feedback is incredibly valuable!
 If you find bugs, or have suggestions for new features,

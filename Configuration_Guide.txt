@@ -81,11 +81,28 @@ configured paths are not found.
 
 MAX_CONCURRENT_PROCESSORS
 Purpose: Controls how many media items can be processed 
-simultaneously. Higher values can speed up batch processing
-but use more system resources.
+simultaneously for file transfers and organization.
 Units: Number of concurrent processes
 Range: 1-10 (recommended)
 Default: 2
+
+Processing Architecture:
+JellyMac uses different processing approaches optimized for each media type:
+
+Sequential Processing:
+• YouTube downloads - Always processed one at a time in a queue for reliability
+  (prevents overwhelming YouTube's servers and ensures stable downloads)
+• This setting does not affect YouTube processing
+
+Concurrent Processing: 
+• File organization and transfers - Uses this MAX_CONCURRENT_PROCESSORS setting
+• Torrent downloads - Multiple torrents can run simultaneously via Transmission
+• Background operations - Clipboard monitoring runs independently
+
+This hybrid approach balances performance with reliability. YouTube's complex
+download requirements benefit from sequential processing, while simpler file
+operations can safely run concurrently.
+
 Note: Consider your system's CPU cores and available RAM.
 Network-attached storage may benefit from lower values
 to avoid overwhelming the connection.

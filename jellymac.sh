@@ -93,6 +93,18 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
                         ""|2|two)
                             echo "Continuing with default local setup..."
                             echo "You can edit lib/jellymac_config.sh later if needed."
+                            echo "To edit:" 
+                            echo "   1. Navigate to the lib folder inside your JellyMac directory"
+                            echo "   2. Open lib/jellymac_config.sh with a text editor (e.g., nano, TextEdit)"
+                            echo "   3. Key paths to update include:"
+                            echo "      - DROP_FOLDER (where new media files are dropped)"
+                            echo "      - DEST_DIR_MOVIES (your Movies library folder)"
+                            echo "      - DEST_DIR_SHOWS (your Shows library folder)"
+                            echo "      - LOCAL_DIR_YOUTUBE (your YouTube library folder)"
+                            echo ""
+                            echo "   Refer to Getting_Started.txt or Configuration_Guide.txt for details on all options."
+                            echo ""
+                            echo "   4. Save the file. JellyMac will use these new settings the next time it runs or processes media"
                             echo ""
                             ;;
                         *)
