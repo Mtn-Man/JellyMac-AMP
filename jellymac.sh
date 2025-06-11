@@ -13,7 +13,7 @@
 #
 # Author: Eli Sher (Mtn_Man)
 # Version: v0.2.3
-# Last Updated: 2025-06-10
+# Last Updated: 2025-06-11
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -1065,7 +1065,7 @@ _acquire_lock  # Ensure only one instance of JellyMac runs at a time
 show_startup_banner  # Call the startup banner function if enabled
 
 log_user_info "JellyMac" "🚀 JellyMac Starting..."
-log_user_info "JellyMac" "Version: v0.2.3 (2025-06-10)"
+log_user_info "JellyMac" "Version: v0.2.3 ($(date +%Y-%m-%d))"
 log_user_info "JellyMac" "JellyMac location: $JELLYMAC_PROJECT_ROOT"
 log_debug_event "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
