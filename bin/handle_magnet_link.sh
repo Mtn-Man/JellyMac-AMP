@@ -102,6 +102,26 @@ if ! [[ "$MAGNET_URL" =~ ^magnet:\?xt=urn:btih:[a-zA-Z0-9]{32,} ]]; then
 fi
 log_debug_event "Torrent" "Received Magnet link: ${MAGNET_URL:0:70}..."
 
+# Extract magnet hash for history checking
+MAGNET_HASH="${MAGNET_URL#*xt=urn:btih:}"
+MAGNET_HASH="${MAGNET_HASH%%&*}"  # Remove any additional parameters
+MAGNET_HASH="${MAGNET_HASH:0:40}" # Ensure exactly 40 chars
+log_debug_event "Torrent" "Extracted magnet hash: $MAGNET_HASH"
+
+# Check magnet download archive to prevent duplicates
+if [[ -n "${DOWNLOAD_ARCHIVE_MAGNET:-}" ]]; then
+    if [[ -f "$DOWNLOAD_ARCHIVE_MAGNET" ]] && grep -q "^magnet $MAGNET_HASH$" "$DOWNLOAD_ARCHIVE_MAGNET" 2>/dev/null; then
+        log_user_info "Torrent" "🔄 Magnet link already processed previously (found in archive)"
+        log_user_info "Torrent" "Hash: $MAGNET_HASH"
+        log_user_info "Torrent" "Skipping duplicate download to prevent bandwidth waste and file conflicts"
+        exit 0
+    else
+        log_debug_event "Torrent" "Magnet hash not found in archive. Proceeding with download."
+    fi
+else
+    log_debug_event "Torrent" "DOWNLOAD_ARCHIVE_MAGNET not configured. Archive checking disabled."
+fi
+
 # --- Pre-flight Checks ---
 if [[ -z "$TRANSMISSION_REMOTE_HOST" ]]; then # From jellymac_config.sh
     log_error_event "Torrent" "TRANSMISSION_REMOTE_HOST is not set in the configuration. Cannot connect to Transmission."
@@ -189,6 +209,31 @@ if [[ $TR_EXIT_CODE -ne 0 ]]; then
     fi
 else
     log_user_complete "Torrent" "🧲 Torrent added to queue"
+fi
+
+# Record successful magnet addition to archive (prevent future duplicates)
+if [[ -n "${DOWNLOAD_ARCHIVE_MAGNET:-}" ]]; then
+    archive_dir=$(dirname "$DOWNLOAD_ARCHIVE_MAGNET")
+    
+    # Ensure archive directory exists
+    if [[ ! -d "$archive_dir" ]]; then
+        if mkdir -p "$archive_dir"; then
+            log_debug_event "Torrent" "Created magnet archive directory: $archive_dir"
+        else
+            log_warn_event "Torrent" "Failed to create magnet archive directory: $archive_dir. Archive will not be updated."
+        fi
+    fi
+    
+    # Record the magnet hash in archive (if directory creation succeeded)
+    if [[ -d "$archive_dir" ]]; then
+        if echo "magnet $MAGNET_HASH" >> "$DOWNLOAD_ARCHIVE_MAGNET"; then
+            log_debug_event "Torrent" "Added magnet hash to archive: $MAGNET_HASH"
+        else
+            log_warn_event "Torrent" "Failed to write to magnet archive file: $DOWNLOAD_ARCHIVE_MAGNET"
+        fi
+    fi
+else
+    log_debug_event "Torrent" "DOWNLOAD_ARCHIVE_MAGNET not configured. Magnet hash not recorded for future duplicate prevention."
 fi
 
 # --- Post-Action ---

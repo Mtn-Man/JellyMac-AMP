@@ -886,6 +886,21 @@ _check_clipboard_magnet() {
         
         case "$trimmed_cb" in
             magnet:\?xt=urn:btih:*)
+                # Extract magnet hash for archive checking
+                MAGNET_HASH="${trimmed_cb#*xt=urn:btih:}"
+                MAGNET_HASH="${MAGNET_HASH%%&*}"  # Remove any additional parameters
+                MAGNET_HASH="${MAGNET_HASH:0:40}" # Ensure exactly 40 chars
+                
+                # Check magnet download archive to prevent duplicates
+                if [[ -n "${DOWNLOAD_ARCHIVE_MAGNET:-}" ]]; then
+                    if [[ -f "$DOWNLOAD_ARCHIVE_MAGNET" ]] && grep -q "^magnet $MAGNET_HASH$" "$DOWNLOAD_ARCHIVE_MAGNET" 2>/dev/null; then
+                        log_user_info "JellyMac" "🔄 Magnet link already processed previously (found in archive)"
+                        log_user_info "JellyMac" "Hash: $MAGNET_HASH"
+                        log_user_info "JellyMac" "Skipping duplicate download to prevent bandwidth waste and file conflicts"
+                        return
+                    fi
+                fi
+                
                 log_user_info "JellyMac" "🧲 Detected Magnet URL: '${trimmed_cb:0:70}...'"
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
 

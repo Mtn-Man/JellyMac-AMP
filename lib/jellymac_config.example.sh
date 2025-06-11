@@ -68,7 +68,8 @@ HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"
 #==============================================================================
 
 LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"                            # Temporary staging download folder for YouTube videos
-DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
+DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading youtube videos
+DOWNLOAD_ARCHIVE_MAGNET="${JELLYMAC_PROJECT_ROOT}/.magnet_download_archive.txt"       # Prevents re-downloading torrented files
 COOKIES_ENABLED="false"                                                               # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                                              # Export from browser if cookies enabled
 YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO="false"                                            # Create subfolder for each video (true/false)
