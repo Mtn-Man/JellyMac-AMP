@@ -778,7 +778,7 @@ _check_clipboard_youtube() {
         local trimmed_cb; trimmed_cb="$(echo -E "${current_cb_content}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
         
         case "$trimmed_cb" in
-            https://www.youtube.com/watch\\?v=*|https://youtu.be/*|https://www.youtube.com/playlist\\?list=*)
+            https://www.youtube.com/watch\?v=*|https://youtu.be/*|https://www.youtube.com/playlist\?list=*)
                 # Check if this URL is already being processed or queued
                 if is_item_being_processed "$trimmed_cb"; then
                     log_user_info "JellyMac" "YouTube URL already being processed: \'${trimmed_cb:0:70}...\'"
