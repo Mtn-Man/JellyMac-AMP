@@ -9,18 +9,25 @@
 ################################################################################
 
 # === REQUIRED PATHS (Must be configured before first run) ===
+
 # Note: Only edit the sections between the "===" below (e.g. "$HOME/Movies/Movies" -> "/Volumes/Media/Movies")
 
-DROP_FOLDER="$HOME/Downloads/JellyDrop"                 # Watch folder for Movies and TV Shows
-DEST_DIR_MOVIES="$HOME/Movies/Movies"                   # Your  Movies library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Movies)
-DEST_DIR_SHOWS="$HOME/Movies/Shows"                     # Your   Shows library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Shows) 
-DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"                 # Your YouTube library folder
+# Your  Movies library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Movies)
+# Your   Shows library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Shows) 
+# Your YouTube library folder
+
+DROP_FOLDER="$HOME/Downloads/JellyDrop"                 
+DEST_DIR_MOVIES="$HOME/Movies/Movies"                   
+DEST_DIR_SHOWS="$HOME/Movies/Shows"                     
+DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"                
 
 # === JELLYFIN SERVER (Optional - leave blank to disable) ===
+
 JELLYFIN_SERVER=""                                      # Your Jellyfin server URL (e.g. "http://your-jellyfin-server-ip:8096" or http://localhost:8096)
 JELLYFIN_API_KEY="your-jellyfin-api-key-here"           # Generate in Jellyfin Settings → API Keys
 
 # === FEATURES ===
+
 ENABLE_TORRENT_AUTOMATION="true"                        # Process magnet links automatically? (true/false)
 ENABLE_CLIPBOARD_MAGNET="true"                          # Watch clipboard for magnet links? (true/false)
 ENABLE_CLIPBOARD_YOUTUBE="true"                         # Watch clipboard for YouTube links? (true/false)
@@ -68,9 +75,11 @@ HISTORY_FILE="${JELLYMAC_PROJECT_ROOT}/.jellymac_history.log"
 #==============================================================================
 
 LOCAL_DIR_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.temp_youtube"                            # Temporary staging download folder for YouTube videos
-DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading
+DOWNLOAD_ARCHIVE_YOUTUBE="${JELLYMAC_PROJECT_ROOT}/.yt_download_archive.txt"          # Prevents re-downloading youtube videos
+DOWNLOAD_ARCHIVE_MAGNET="${JELLYMAC_PROJECT_ROOT}/.magnet_download_archive.txt"       # Prevents re-downloading torrented files
 COOKIES_ENABLED="false"                                                               # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                                              # Export from browser if cookies enabled
+YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO="false"                                            # Create subfolder for each video (true/false)
 YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (default is 1080p for quality/file size balance) (configure to your needs)
 # For older macOS versions without good HEVC hardware decoding, consider changing "[vcodec=hevc]" above to the older standard "[vcodec=h264]"
 YTDLP_OPTS=(                                                                          
@@ -131,3 +140,4 @@ TORRENT_CLIENT_CLI_PATH="/opt/homebrew/bin/transmission-remote"     # Path to tr
 TRANSMISSION_REMOTE_HOST="localhost:9091"                           # Host:port of transmission daemon
 TRANSMISSION_REMOTE_AUTH=""                                         # Leave blank if no auth required
                                                                     # Format: "username:password" if needed
+TRANSMISSION_AUTO_CLEANUP="true"                                    # Remove completed downloads from Transmission list

@@ -7,6 +7,23 @@
 # logging_utils.sh, combined.conf.sh, and common_utils.sh
 # and SCRIPT_CURRENT_LOG_LEVEL is set.
 
+# Ensure logging_utils.sh is sourced, as this script may use log_*_event functions
+if ! command -v log_debug_event &>/dev/null; then # Using log_debug_event as a representative function
+    _DOCTOR_UTILS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+    if [[ -f "${_DOCTOR_UTILS_LIB_DIR}/logging_utils.sh" ]]; then
+        # shellcheck source=logging_utils.sh
+        # shellcheck disable=SC1091
+        source "${_DOCTOR_UTILS_LIB_DIR}/logging_utils.sh"
+    else
+        # If logging_utils.sh is not found here, we rely on jellymac.sh having sourced it.
+        # If not, log_*_event calls will fail, indicating a setup issue.
+        echo "WARNING: doctor_utils.sh: logging_utils.sh not found at ${_DOCTOR_UTILS_LIB_DIR}/logging_utils.sh. Logging functions may be unavailable if not already sourced." >&2
+    fi
+    # If log_debug_event is still not found after this attempt, 
+    # it implies a more significant issue with sourcing order or file availability,
+    # which should be handled by the main script or result in command-not-found errors for log calls.
+fi
+
 # Function: normalize_user_response
 # Description: Normalizes user input for yes/no prompts
 # Parameters:
@@ -706,6 +723,119 @@ provide_manual_transmission_setup() {
     log_user_info "$log_prefix" "Once configured, magnet links will be fully automated."
 }
 
+# Function: offer_iina_installation_and_default
+# Description: Offers to install IINA and set it as default for .mkv/.mp4.
+#              Defaults to "No" for the installation prompt.
+# Parameters: None
+# Returns: 0 (always, as this is an optional setup step)
+# Side Effects: May install IINA, duti, and change default app associations if user opts in.
+offer_iina_installation_and_default() {
+    local log_prefix="Doctor"
+
+    if [[ "$(uname)" != "Darwin" ]]; then
+        log_debug_event "$log_prefix" "Skipping IINA offer, not on macOS."
+        return 0
+    fi
+
+    # Check if this step has been completed before
+    if [[ -f "${STATE_DIR}/.iina_setup_offered" ]]; then
+        log_debug_event "$log_prefix" "IINA setup/offer has been processed in a previous session. Skipping."
+        return 0
+    fi
+
+    echo # Add some spacing before this new section
+    log_user_info "$log_prefix" "🎬 Optional: Enhance Your Media Playback on macOS"
+    echo
+    echo "QuickTime Player, the default macOS video player, has limitations with many"
+    echo "modern video formats like HEVC (common in high-quality .mp4 files) and containers"
+    echo "like .mkv (often used for movies and TV shows)."
+    echo
+    echo "IINA is a free, open-source, and powerful media player for macOS that supports"
+    echo "a much wider range of video formats and codecs out-of-the-box."
+    echo
+    echo -e "\033[1mWould you like to install IINA and set it as the default player for .mkv and .mp4 files?\033[0m"
+    echo "(This uses Homebrew: 'brew install --cask iina' and 'brew install duti')"
+    
+    local response
+    read -r -p "Install IINA and set as default? (y/N): " response # Default to No
+    local normalized_response
+    normalized_response=$(normalize_user_response "$response") # "" will be "yes" due to normalize_user_response, so we handle "" explicitly
+
+    if [[ -z "$response" ]]; then # If user just presses Enter, treat as "no"
+        normalized_response="no"
+    fi
+
+    case "$normalized_response" in
+        "yes")
+            log_user_info "$log_prefix" "🚀 Proceeding with IINA installation and setup..."
+
+            # Install IINA
+            if brew list --cask iina &>/dev/null; then
+                log_user_info "$log_prefix" "IINA media player is already installed."
+            else
+                log_user_info "$log_prefix" "Installing IINA media player (brew install --cask iina)..."
+                if brew install --cask iina; then
+                    log_user_info "$log_prefix" "✅ Successfully installed IINA."
+                else
+                    log_error_event "$log_prefix" "❌ Failed to install IINA. Skipping default player setup."
+                    touch "${STATE_DIR}/.iina_setup_offered" # Mark as offered
+                    return 0
+                fi
+            fi
+
+            # Install duti (for setting default apps)
+            if command -v duti &>/dev/null; then
+                log_debug_event "$log_prefix" "'duti' utility is already installed."
+            else
+                log_user_info "$log_prefix" "'duti' utility not found. Attempting to install (brew install duti)..."
+                if brew install duti; then
+                    log_user_info "$log_prefix" "✅ Successfully installed 'duti'."
+                else
+                    log_error_event "$log_prefix" "❌ Failed to install 'duti'. Cannot set default applications automatically."
+                    log_user_info "$log_prefix" "You can try installing 'duti' manually ('brew install duti') and then set IINA as default via Finder's 'Get Info' panel."
+                    touch "${STATE_DIR}/.iina_setup_offered" # Mark as offered
+                    return 0
+                fi
+            fi
+            
+            # Set IINA as default for .mkv and .mp4
+            local iina_bundle_id="com.colliderli.iina"
+            local types_to_set=(".mkv" ".mp4") # Could expand to more types if desired
+            local all_set_successfully=true
+
+            log_user_info "$log_prefix" "Attempting to set IINA as the default player..."
+            for ext_type in "${types_to_set[@]}"; do
+                log_debug_event "$log_prefix" "Setting IINA as default for ${ext_type} files..."
+                if duti -s "$iina_bundle_id" "${ext_type}" all; then
+                    log_user_info "$log_prefix" "✅ IINA set as default for ${ext_type} files."
+                else
+                    log_warn_event "$log_prefix" "⚠️ Failed to set IINA as default for ${ext_type} files using 'duti'."
+                    all_set_successfully=false
+                fi
+            done
+
+            if [[ "$all_set_successfully" == "true" ]]; then
+                log_user_info "$log_prefix" "🎉 IINA should now be your default player for .mkv and .mp4 files!"
+            else
+                log_user_info "$log_prefix" "Some file types may not have been set. You can set IINA as the default player manually via Finder's 'Get Info' panel (select a file, press ⌘I, choose IINA under 'Open with:', and click 'Change All...')."
+            fi
+            ;;
+        "no") # Explicit "no" or default due to empty input
+            log_user_info "$log_prefix" "Skipping IINA installation and setup."
+            echo
+            echo "You can install IINA manually later if you wish (visit iina.io or use Homebrew)."
+            echo "To set it as default: select an .mkv or .mp4 file, press ⌘I (Get Info),"
+            echo "choose IINA under 'Open with:', and click 'Change All...'."
+            ;;
+        "invalid") # Should not happen with current normalize_user_response and explicit "" check
+            log_user_info "$log_prefix" "Invalid response. Skipping IINA setup."
+            ;;
+    esac
+    echo
+    touch "${STATE_DIR}/.iina_setup_offered" # Mark as offered so it doesn't ask again
+    return 0
+}
+
 # Function: perform_system_health_checks
 # Description: Performs health checks for required and optional commands
 # Parameters: None
@@ -883,6 +1013,9 @@ if [[ $missing_count -gt 0 ]]; then
             any_optional_missing=true
         fi
     fi
+
+    # --- Offer IINA Installation ---
+    offer_iina_installation_and_default
     
     log_debug_event "$log_prefix" "✅ System health checks passed."
     

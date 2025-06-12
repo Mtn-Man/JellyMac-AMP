@@ -9,6 +9,20 @@
 # Logging within these functions should be minimal (e.g., debug logs if necessary),
 # allowing the calling script (process_media_item.sh) to handle main logging.
 
+# Ensure logging_utils.sh is sourced, as this script uses log_debug_event
+if ! command -v log_debug_event &>/dev/null; then
+    # Attempt to source it relative to this script's directory if SCRIPT_DIR is not set.
+    # This is a fallback for direct execution or sourcing from unexpected contexts.
+    # The main jellymac.sh script will have already sourced it.
+    _MEDIA_UTILS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+    if [[ -f "${_MEDIA_UTILS_LIB_DIR}/logging_utils.sh" ]]; then
+        # shellcheck source=logging_utils.sh
+        # shellcheck disable=SC1091
+        source "${_MEDIA_UTILS_LIB_DIR}/logging_utils.sh"
+    fi
+
+fi
+
 #==============================================================================
 # Function: is_valid_media_year
 # Description: Validates if a year is within reasonable range for media content

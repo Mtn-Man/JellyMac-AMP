@@ -18,11 +18,8 @@ logs/
 # Example:
 # *.tmp
 # .*.tmp
-
-
 .yt_download_archive.txt
-
 .yt_download_archive.txt.bak
-
 lib/organizer_utils.sh
 story.txt
+jellymac_installer.sh

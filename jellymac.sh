@@ -12,8 +12,8 @@
 # - Can fully automate the media acquisition pipeline for Jellyfin users (or Plex/Emby)
 #
 # Author: Eli Sher (Mtn_Man)
-# Version: v0.2.2
-# Last Updated: 2025-06-06
+# Version: v0.2.3
+# Last Updated: 2025-06-11
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -54,15 +54,13 @@ CONFIG_PATH="${SCRIPT_DIR}/lib/${CONFIG_FILE_NAME}"
 EXAMPLE_PATH="${SCRIPT_DIR}/lib/jellymac_config.example.sh"
 
 # Auto-setup configuration if needed
-# Auto-setup configuration if needed
 if [[ ! -f "$CONFIG_PATH" ]]; then
     if [[ -f "$EXAMPLE_PATH" ]]; then
-        echo ""
-        echo "                    Welcome to JellyMac!"
+        echo "                  Welcome to JellyMac!"
         echo ""
         echo "   It looks like you haven't set up your configuration file yet."
         echo ""
-        echo "   Would you like to create a new config file with default settings?"
+        echo "   Would you like to create a config file with default settings?"
         echo "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
         echo ""
         
@@ -95,6 +93,18 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
                         ""|2|two)
                             echo "Continuing with default local setup..."
                             echo "You can edit lib/jellymac_config.sh later if needed."
+                            echo "To edit:" 
+                            echo "   1. Navigate to the lib folder inside your JellyMac directory"
+                            echo "   2. Open lib/jellymac_config.sh with a text editor (e.g., nano, TextEdit)"
+                            echo "   3. Key paths to update include:"
+                            echo "      - DROP_FOLDER (where new media files are dropped)"
+                            echo "      - DEST_DIR_MOVIES (your Movies library folder)"
+                            echo "      - DEST_DIR_SHOWS (your Shows library folder)"
+                            echo "      - LOCAL_DIR_YOUTUBE (your YouTube library folder)"
+                            echo ""
+                            echo "   Refer to Getting_Started.txt or Configuration_Guide.txt for details on all options."
+                            echo ""
+                            echo "   4. Save the file. JellyMac will use these new settings the next time it runs or processes media"
                             echo ""
                             ;;
                         *)
@@ -153,6 +163,16 @@ case "$(echo "${LOG_LEVEL:-INFO}" | tr '[:lower:]' '[:upper:]')" in
 esac
 export SCRIPT_CURRENT_LOG_LEVEL
 
+# Export other logging-related config variables for subshells (e.g., bin/ scripts)
+# These are read from jellymac_config.sh and used by exported logging functions.
+export LOG_ROTATION_ENABLED
+export LOG_DIR
+export LOG_FILE_BASENAME
+export LOG_RETENTION_DAYS
+# Note: CURRENT_LOG_FILE_PATH and LAST_LOG_DATE_CHECKED are managed by the exported 
+# _ensure_log_file_updated function and will be handled correctly within each 
+# subshell's context by that function when it's called.
+
 # 4. Common Utilities (provides play_sound_notification, find_executable, etc.)
 # shellcheck source=lib/common_utils.sh
 # shellcheck disable=SC1091
@@ -167,6 +187,11 @@ source "${SCRIPT_DIR}/lib/doctor_utils.sh"
 # shellcheck source=lib/media_utils.sh
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/media_utils.sh"
+
+# 7. YouTube Utilities (for YouTube queue management)
+# shellcheck source=lib/youtube_utils.sh
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/youtube_utils.sh"
 
 # --- Paths to Helper Scripts in bin/ ---
 HANDLE_YOUTUBE_SCRIPT="${SCRIPT_DIR}/bin/handle_youtube_link.sh"
@@ -207,6 +232,7 @@ _delete_old_logs() {
         find "$LOG_DIR" -name "${LOG_FILE_BASENAME}_*.log" -type f -mtime +"$retention_days_for_find" -delete
     fi
 }
+export -f _delete_old_logs
 #=================================================================
 
 #==============================================================================
@@ -237,6 +263,7 @@ _ensure_log_file_updated() {
         _delete_old_logs
     fi
 }
+export -f _ensure_log_file_updated
 _ensure_log_file_updated # Initial setup call
 
 #==============================================================================
@@ -258,15 +285,23 @@ _log_to_current_file() {
     local prefix="$2" 
     # shellcheck disable=SC2317
     local message="$3"
-    # Only log if file logging is enabled and path is valid
+
+    # Only log if file logging is enabled
     # shellcheck disable=SC2317
-    if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" || -z "$CURRENT_LOG_FILE_PATH" ]]; then
+    if [[ "${LOG_ROTATION_ENABLED:-false}" != "true" ]]; then
         return
     fi
     
     # Ensure log file path is current (handles rotation)
+    # This function sets CURRENT_LOG_FILE_PATH in the current shell
     # shellcheck disable=SC2317
     _ensure_log_file_updated
+    
+    # Now check if CURRENT_LOG_FILE_PATH was successfully set by _ensure_log_file_updated
+    # shellcheck disable=SC2317
+    if [[ -z "$CURRENT_LOG_FILE_PATH" ]]; then
+        return
+    fi
     
     # Convert numeric level to severity label for file
     # shellcheck disable=SC2317
@@ -302,6 +337,7 @@ _log_to_current_file() {
         echo "$file_log_message" >> "$CURRENT_LOG_FILE_PATH"
     fi
 }
+export -f _log_to_current_file
 
 # Define local log function for jellymac.sh using the modern emoji-based system
 # shellcheck disable=SC2317
@@ -351,7 +387,15 @@ _ACTIVE_PROCESSOR_INFO_STRING=""
 LAST_CLIPBOARD_CONTENT_YOUTUBE=""
 LAST_CLIPBOARD_CONTENT_MAGNET=""
 PBPASTE_CMD="" 
-_SHUTDOWN_IN_PROGRESS="" 
+_SHUTDOWN_IN_PROGRESS=""
+
+# --- YouTube Queue Tracking ---
+_YOUTUBE_PROCESSING_ACTIVE=""             # Flag to track if YouTube is being processed in foreground
+_ACTIVE_YOUTUBE_URL=""                    # Track the currently downloading YouTube URL
+_ACTIVE_YOUTUBE_PID=""                    # Track the PID of active YouTube download
+
+# --- Torrent Cleanup Tracking ---
+last_torrent_cleanup=0                    # Timestamp of last cleanup (Unix timestamp) 
 
 #==============================================================================
 # PROCESS MANAGEMENT FUNCTIONS
@@ -387,6 +431,14 @@ graceful_shutdown_and_cleanup() {
     echo 
     # shellcheck disable=SC2317
     log_user_shutdown "JellyMac" "Exiting JellyMac..." 
+
+    # NEW: Handle interrupted YouTube downloads
+    # shellcheck disable=SC2317
+    if [[ -n "$_ACTIVE_YOUTUBE_URL" && -n "$_ACTIVE_YOUTUBE_PID" ]]; then
+        log_user_info "JellyMac" "🔄 Handling interrupted YouTube download..."
+        _handle_interrupted_youtube_download
+    fi
+    
     #shellcheck disable=SC2317
     if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" > /dev/null; then
         log_user_info "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
@@ -405,12 +457,24 @@ graceful_shutdown_and_cleanup() {
     # Bash 3.2 compatible: Use explicit string replacement then array assignment
     # shellcheck disable=SC2317
     local processor_string_modified
-    # shellcheck disable=SC2317
+    #shellcheck disable=SC2317
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
     # shellcheck disable=SC2317
-    local p_info_array
+    local p_info_array=() # Initialize for Bash 3.2
     # shellcheck disable=SC2317
-    read -ra p_info_array <<< "$processor_string_modified"
+    # Replace: read -ra p_info_array <<< "$processor_string_modified"
+    # shellcheck disable=SC2317
+    local old_ifs_gsac="$IFS" # Store original IFS
+    # shellcheck disable=SC2317
+    IFS='|'                   # Set IFS to the delimiter
+    # shellcheck disable=SC2317
+    set -f                    # Disable globbing
+    # shellcheck disable=SC2162,SC2317
+    read -r -a p_info_array <<< "$processor_string_modified" # Use read -r -a
+    # shellcheck disable=SC2317
+    set +f                    # Re-enable globbing
+    # shellcheck disable=SC2317
+    IFS="$old_ifs_gsac"       # Restore original IFS
     # shellcheck disable=SC2317
     set +f 
     # shellcheck disable=SC2317
@@ -441,6 +505,10 @@ graceful_shutdown_and_cleanup() {
         _cleanup_common_utils_temp_files 
     fi
     # shellcheck disable=SC2317
+    if [[ -f "${STATE_DIR}/youtube_queue.txt" ]]; then
+        log_debug_event "JellyMac" "YouTube queue file exists. Retaining for next session."
+    fi
+    # shellcheck disable=SC2317
     _cleanup_jellymac_temp_files   
 
     # shellcheck disable=SC2317
@@ -466,8 +534,14 @@ manage_active_processors() {
     set -f 
     local processor_string_modified
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-    local p_info_array
-    read -ra p_info_array <<< "$processor_string_modified"
+    local p_info_array=() # Initialize for Bash 3.2
+    # Replace: read -ra p_info_array <<< "$processor_string_modified"
+    local old_ifs_map="$IFS"
+    IFS='|'
+    set -f
+    read -r -a p_info_array <<< "$processor_string_modified"
+    set +f
+    IFS="$old_ifs_map"
     set +f 
     IFS="$old_ifs"
     local entry_count=${#p_info_array[@]}
@@ -520,11 +594,17 @@ is_item_being_processed() {
 
     local old_ifs="$IFS"; IFS='|'
     set -f 
-    # Bash 3.2 compatible: Use explicit string replacement then array assignment
+    \
     local processor_string_modified
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-    local p_info_array
-    read -ra p_info_array <<< "$processor_string_modified"
+    local p_info_array=() # Initialize for Bash 3.2
+    # Replace: read -ra p_info_array <<< "$processor_string_modified"
+    local old_ifs_iibp="$IFS"
+    IFS='|'
+    set -f
+    read -r -a p_info_array <<< "$processor_string_modified"
+    set +f
+    IFS="$old_ifs_iibp"
     set +f 
     IFS="$old_ifs"
     local entry_count=${#p_info_array[@]}
@@ -546,6 +626,151 @@ is_item_being_processed() {
 #==============================================================================
 # Functions for detecting and processing media from various sources
 
+#==============================================================================
+# Function: check_and_resume_youtube_queue
+# Description: Checks for existing YouTube queue on startup and resumes automatically
+# Parameters: None
+# Returns: None
+# Side Effects: Processes existing queue if found
+#==============================================================================
+check_and_resume_youtube_queue() {
+    local queue_file="${STATE_DIR}/youtube_queue.txt"
+    
+    if [[ ! -f "$queue_file" ]]; then
+        log_debug_event "JellyMac" "No existing YouTube queue found on startup."
+        return 0
+    fi
+    
+    # Count non-empty lines in queue
+    local queue_count
+    queue_count=$(grep -c . "$queue_file" 2>/dev/null || echo "0")
+    
+    if [[ "$queue_count" -eq 0 ]]; then
+        log_debug_event "JellyMac" "YouTube queue file exists but is empty. Removing."
+        rm -f "$queue_file"
+        return 0
+    fi
+    
+    log_user_info "JellyMac" "📋 Found $queue_count queued YouTube downloads from previous session"
+    log_user_info "JellyMac" "🎬 Auto-resuming YouTube queue..."
+    
+    # Process the queue
+    if command -v _process_youtube_queue >/dev/null 2>&1; then
+        _process_youtube_queue
+    else
+        log_warn_event "JellyMac" "Queue processing function not available. Cannot resume queue."
+        rm -f "$queue_file"
+    fi
+}
+
+#==============================================================================
+# Function: _handle_interrupted_youtube_download
+# Description: Handles cleanup and re-queuing of interrupted YouTube downloads
+# Parameters: None
+# Returns: None
+# Side Effects: Cleans up partial files, removes from archive, re-queues URL
+# Dev note: We make heavy use of shellcheck disable=SC2317 to prevent false positives
+#==============================================================================
+_handle_interrupted_youtube_download() {
+    # shellcheck disable=SC2317
+    log_debug_event "JellyMac" "Cleaning up interrupted YouTube download: ${_ACTIVE_YOUTUBE_URL:0:60}..."
+    
+    # shellcheck disable=SC2317
+    # 1. Terminate the download process if still running
+    if [[ -n "$_ACTIVE_YOUTUBE_PID" ]] && ps -p "$_ACTIVE_YOUTUBE_PID" >/dev/null 2>&1; then
+        log_debug_event "JellyMac" "Terminating YouTube download process (PID: $_ACTIVE_YOUTUBE_PID)..."
+        kill "$_ACTIVE_YOUTUBE_PID" 2>/dev/null || true
+        sleep 1
+        # Force kill if still running
+        if ps -p "$_ACTIVE_YOUTUBE_PID" >/dev/null 2>&1; then
+            kill -9 "$_ACTIVE_YOUTUBE_PID" 2>/dev/null || true
+        fi
+    fi
+    
+    # shellcheck disable=SC2317
+    # 2. Clean up partial download files in LOCAL_DIR_YOUTUBE
+    if [[ -n "${LOCAL_DIR_YOUTUBE:-}" && -d "${LOCAL_DIR_YOUTUBE}" ]]; then
+        log_debug_event "JellyMac" "Cleaning up partial YouTube files in: $LOCAL_DIR_YOUTUBE"
+        find "${LOCAL_DIR_YOUTUBE}" -maxdepth 1 \( -name "*.part" -o -name "*.tmp" -o -name "*.ytdl" \) -type f -delete 2>/dev/null || true
+    fi
+    
+    # shellcheck disable=SC2317
+    # 3. Remove from download archive to allow retry
+    if [[ -n "${DOWNLOAD_ARCHIVE_YOUTUBE:-}" && -f "${DOWNLOAD_ARCHIVE_YOUTUBE}" && -n "$_ACTIVE_YOUTUBE_URL" ]]; then
+        _remove_url_from_youtube_archive "$_ACTIVE_YOUTUBE_URL"
+    fi
+    
+    # shellcheck disable=SC2317
+    # 4. Add back to queue for retry on next startup
+    if [[ -n "$_ACTIVE_YOUTUBE_URL" ]]; then
+        local queue_file="${STATE_DIR}/youtube_queue.txt"
+        # Check if URL is already in queue to avoid duplicates
+        if ! grep -Fxq "$_ACTIVE_YOUTUBE_URL" "$queue_file" 2>/dev/null; then
+            echo "$_ACTIVE_YOUTUBE_URL" >> "$queue_file"
+            log_user_info "JellyMac" "📋 Re-queued interrupted download for next startup: ${_ACTIVE_YOUTUBE_URL:0:60}..."
+        fi
+    fi
+    
+    # shellcheck disable=SC2317
+    # 5. Clear tracking variables
+    _ACTIVE_YOUTUBE_URL=""
+    # shellcheck disable=SC2317
+    _ACTIVE_YOUTUBE_PID=""
+}
+
+#==============================================================================
+# Function: _remove_url_from_youtube_archive
+# Description: Removes a YouTube URL from the download archive
+# Parameters:
+#   $1 - YouTube URL to remove from archive
+# Returns: None
+#==============================================================================
+_remove_url_from_youtube_archive() {
+    # shellcheck disable=SC2317
+    local url_to_remove="$1"
+    
+    # shellcheck disable=SC2317
+    if [[ -z "$url_to_remove" || -z "${DOWNLOAD_ARCHIVE_YOUTUBE:-}" || ! -f "${DOWNLOAD_ARCHIVE_YOUTUBE}" ]]; then
+        return
+    fi
+    
+    # shellcheck disable=SC2317
+    # Extract video ID from URL using Bash 3.2 compatible method
+    local video_id=""
+    # shellcheck disable=SC2317
+    case "$url_to_remove" in
+        *"watch?v="*)
+            video_id="${url_to_remove#*watch?v=}"  # Remove everything before "watch?v="
+            video_id="${video_id%%&*}"             # Remove everything after first "&"
+            ;;
+        *"youtu.be/"*)
+            video_id="${url_to_remove#*youtu.be/}" # Remove everything before "youtu.be/"
+            video_id="${video_id%%\?*}"            # Remove everything after first "?"
+            ;;
+    esac
+    
+    # shellcheck disable=SC2317
+    if [[ -n "$video_id" ]]; then
+        log_debug_event "JellyMac" "Removing video ID from archive: $video_id"
+        # Create backup and remove entry
+        if cp "${DOWNLOAD_ARCHIVE_YOUTUBE}" "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" 2>/dev/null; then
+            if grep -v "youtube $video_id" "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" > "${DOWNLOAD_ARCHIVE_YOUTUBE}" 2>/dev/null; then
+                log_debug_event "JellyMac" "Successfully removed $video_id from download archive"
+            else
+                log_warn_event "JellyMac" "Failed to update download archive"
+                # Restore backup if update failed
+                mv "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" "${DOWNLOAD_ARCHIVE_YOUTUBE}" 2>/dev/null || true
+            fi
+            # Clean up backup file
+            rm -f "${DOWNLOAD_ARCHIVE_YOUTUBE}.bak" 2>/dev/null || true
+        else
+            log_warn_event "JellyMac" "Failed to create backup of download archive"
+        fi
+    else
+        log_warn_event "JellyMac" "Could not extract video ID from URL: ${url_to_remove:0:100}..."
+    fi
+}
+
 # Function: _check_clipboard_youtube
 # Description: Checks clipboard for YouTube URLs and processes them if found
 # Parameters: None
@@ -563,19 +788,91 @@ _check_clipboard_youtube() {
     if [[ "$current_cb_content" != "$LAST_CLIPBOARD_CONTENT_YOUTUBE" && -n "$current_cb_content" ]]; then
         LAST_CLIPBOARD_CONTENT_YOUTUBE="$current_cb_content" 
         local trimmed_cb; trimmed_cb="$(echo -E "${current_cb_content}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-        # Bash 3.2 compatible: Use case statement instead of regex where possible
+        
         case "$trimmed_cb" in
-            https://www.youtube.com/watch\?v=*|https://youtu.be/*)
-                log_user_info "JellyMac" "Detected YouTube URL: '${trimmed_cb:0:70}...'"
+            https://www.youtube.com/watch\?v=*|https://youtu.be/*|https://www.youtube.com/playlist\?list=*)
+                # Check if this URL is already being processed or queued
+                if is_item_being_processed "$trimmed_cb"; then
+                    log_user_info "JellyMac" "YouTube URL already being processed: \'${trimmed_cb:0:70}...\'"
+                    return
+                fi
+                
+                # Check if this is a playlist URL
+                if [[ "$trimmed_cb" == *"playlist?list="* ]]; then
+                    log_user_info "JellyMac" "📋 Detected YouTube playlist: \'${trimmed_cb:0:70}...\'"
+                    play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX"
+                    log_user_info "JellyMac" "🚧 Playlist processing not yet implemented - coming soon!"
+                    return
+                fi
+                
+                log_user_info "JellyMac" "📺 Detected YouTube URL: \'${trimmed_cb:0:70}...\'"
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
                 
-                if "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb"; then
-                    log_debug_event "JellyMac" "✅ YouTube processing complete for: ${trimmed_cb:0:70}..."
+                # Check if YouTube processing is already active
+                if [[ "$_YOUTUBE_PROCESSING_ACTIVE" == "true" ]]; then
+                    # Add to queue instead of processing immediately
+                    _add_youtube_to_queue "$trimmed_cb"
+                    return
+                fi
+                
+                # No active processing - start foreground processing
+                _YOUTUBE_PROCESSING_ACTIVE="true"
+                _ACTIVE_YOUTUBE_URL="$trimmed_cb"  # NEW: Track active URL
+                log_user_info "JellyMac" "🎬 Starting YouTube download..."
+                log_user_info "JellyMac" "💡 You may continue copying links - they\'ll be queued automatically!"
+                
+                # Fork background monitoring loop
+                {
+                    local last_torrent_cleanup_subshell="$last_torrent_cleanup" # Initialize from global for this subshell's timer
+                    while [[ "$_YOUTUBE_PROCESSING_ACTIVE" == "true" ]]; do
+                        manage_active_processors
+                        
+                        # Check for new YouTube links to queue (but don't process)
+                        if [[ -n "$PBPASTE_CMD" ]]; then 
+                            _check_clipboard_youtube_for_queue
+                            _check_clipboard_magnet
+                        fi
+                        process_drop_folder
+                        
+                        # Time-based torrent cleanup
+                        if [[ "${TRANSMISSION_AUTO_CLEANUP:-false}" == "true" ]]; then
+                            current_time=$(date +%s)
+                            if [[ $((current_time - last_torrent_cleanup_subshell)) -ge 180 ]]; then # Use subshell's timer
+                                cleanup_completed_torrents "JellyMac" # Log source remains JellyMac for consistency
+                                last_torrent_cleanup_subshell=$current_time # Update subshell's timer
+                            fi
+                        fi
+                        
+                        sleep "${MAIN_LOOP_SLEEP_INTERVAL:-15}"
+                    done
+                } &
+                local background_loop_pid=$!
+                
+                # Process YouTube in foreground with full output visibility
+                "$HANDLE_YOUTUBE_SCRIPT" "$trimmed_cb" &
+                _ACTIVE_YOUTUBE_PID=$!
+
+                if wait "$_ACTIVE_YOUTUBE_PID"; then
+                    log_user_info "JellyMac" "✅ YouTube download complete: \'${trimmed_cb:0:60}...\'"
                 else
+                    log_warn_event "JellyMac" "❌ YouTube download failed: \'${trimmed_cb:0:60}...\'"
                     send_desktop_notification "JellyMac: YouTube Error" "Failed: ${trimmed_cb:0:60}..." "Basso"
-                    log_warn_event "JellyMac" "❌ YouTube processing FAILED for: ${trimmed_cb:0:70}..."
+                    # Consider if the "run yt-dlp -u" message is still relevant
                     log_warn_event "JellyMac" "Close JellyMac, run yt-dlp -u, restart JellyMac and try again."
                 fi
+
+                # Clear tracking variables after completion
+                _ACTIVE_YOUTUBE_URL=""
+                _ACTIVE_YOUTUBE_PID=""
+                
+                # Process any queued downloads
+                _process_youtube_queue
+                
+                # Clean up background monitoring
+                _YOUTUBE_PROCESSING_ACTIVE=""
+                kill "$background_loop_pid" 2>/dev/null || true
+                wait "$background_loop_pid" 2>/dev/null || true
+                
                 ;;
         esac
     fi
@@ -598,19 +895,42 @@ _check_clipboard_magnet() {
     if [[ "$current_cb_content" != "$LAST_CLIPBOARD_CONTENT_MAGNET" && -n "$current_cb_content" ]]; then
         LAST_CLIPBOARD_CONTENT_MAGNET="$current_cb_content" 
         local trimmed_cb; trimmed_cb="$(echo -E "${current_cb_content}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-        # Bash 3.2 compatible: Use case statement instead of regex
+        
         case "$trimmed_cb" in
             magnet:\?xt=urn:btih:*)
-                log_user_info "JellyMac" "🧲 Detected Magnet URL: '${trimmed_cb:0:70}...'";
+                # Extract magnet hash for archive checking
+                MAGNET_HASH="${trimmed_cb#*xt=urn:btih:}"
+                MAGNET_HASH="${MAGNET_HASH%%&*}"  # Remove any additional parameters
+                MAGNET_HASH="${MAGNET_HASH:0:40}" # Ensure exactly 40 chars
+                
+                # Check magnet download archive to prevent duplicates
+                if [[ -n "${DOWNLOAD_ARCHIVE_MAGNET:-}" ]]; then
+                    if [[ -f "$DOWNLOAD_ARCHIVE_MAGNET" ]] && grep -q "^magnet $MAGNET_HASH$" "$DOWNLOAD_ARCHIVE_MAGNET" 2>/dev/null; then
+                        log_user_info "JellyMac" "🔄 Magnet link already processed previously (found in archive)"
+                        log_user_info "JellyMac" "Hash: $MAGNET_HASH"
+                        log_user_info "JellyMac" "Skipping duplicate download to prevent bandwidth waste and file conflicts"
+                        return
+                    fi
+                fi
+                
+                log_user_info "JellyMac" "🧲 Detected Magnet URL: '${trimmed_cb:0:70}...'"
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
 
-                if "$HANDLE_MAGNET_SCRIPT" "$trimmed_cb"; then
-                    log_debug_event "JellyMac" "✅ Magnet link processing appears successful for: ${trimmed_cb:0:70}..."
-                    send_desktop_notification "JellyMac: Magnet" "Sent to client: ${trimmed_cb:0:60}..." 
-                else
-                    # Changed to log_warn to prevent watcher exit on single magnet failure
-                    log_warn_event "JellyMac" "❌ Failed to process magnet link: ${trimmed_cb:0:70}... Check the logs for more details."; 
-                fi
+                # Process magnet in background (non-blocking)
+                log_user_info "JellyMac" "🚀 Processing magnet link (background)..."
+                
+                # Launch magnet handler in background
+                {
+                    if "$HANDLE_MAGNET_SCRIPT" "$trimmed_cb"; then
+                        log_user_info "JellyMac" "✅ Magnet link sent to Transmission: '${trimmed_cb:0:60}...'"
+                        send_desktop_notification "JellyMac: Magnet Added" "Sent to Transmission: ${trimmed_cb:0:50}..."
+                    else
+                        log_warn_event "JellyMac" "❌ Failed to process magnet link: '${trimmed_cb:0:60}...'"
+                        send_desktop_notification "JellyMac: Magnet Error" "Failed: ${trimmed_cb:0:50}..." "Basso"
+                    fi
+                } &
+                
+                log_user_info "JellyMac" "💡 Magnet processing continues in background - you can keep adding links!"
                 ;;
         esac
     fi
@@ -626,7 +946,10 @@ process_drop_folder() {
         log_warn_event "JellyMac" "Drop Folder ('${DROP_FOLDER:-N/A}') not configured or found. Skipping scan."
         return
     fi
+    if [[ "${_LAST_DROP_SCAN_HAD_ITEMS:-false}" == "true" ]] || [[ $(( $(date +%s) % 300 )) -eq 0 ]]; then
     log_debug_event "JellyMac" "Scanning Drop Folder: $DROP_FOLDER"
+    fi 
+    local items_processed=0
     local find_results_file 
     if [[ ! -d "$STATE_DIR" ]]; then 
         mkdir -p "$STATE_DIR" || { log_error_event "JellyMac" "Failed to create STATE_DIR '$STATE_DIR' for temp scan file. Cannot scan DROP_FOLDER."; exit 1; }
@@ -664,8 +987,14 @@ process_drop_folder() {
         # Bash 3.2 compatible: Use explicit string replacement then array assignment
         local processor_string_modified
         processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-        local p_array_temp
-        read -ra p_array_temp <<< "$processor_string_modified"
+        local p_array_temp=() # Initialize for Bash 3.2
+        # Replace: read -ra p_array_temp <<< "$processor_string_modified"
+        local old_ifs_pdf="$IFS"
+        IFS='|'
+        set -f
+        read -r -a p_array_temp <<< "$processor_string_modified"
+        set +f
+        IFS="$old_ifs_pdf"
         set +f 
         IFS="$old_ifs"
         local p_count=$(( ${#p_array_temp[@]} / 4 )) 
@@ -694,11 +1023,19 @@ process_drop_folder() {
             
             log_user_info "JellyMac" "🚀 Launched Media Processor (PID $child_pid). Active processors: $((p_count+1))."
             send_desktop_notification "JellyMac: Processing" "Item: ${item_basename:0:60}..."
+            items_processed=$((items_processed + 1))
         else
             log_warn_event "JellyMac" "🚦 Max concurrent processors (${MAX_CONCURRENT_PROCESSORS:-2}) reached. Deferring processing for '$item_basename' from DROP_FOLDER."
         fi
     done < "$find_results_file" 
     rm -f "$find_results_file" 
+
+    # Track if this scan found items for conditional logging
+    if [[ $items_processed -gt 0 ]]; then
+        _LAST_DROP_SCAN_HAD_ITEMS="true"
+    else
+        _LAST_DROP_SCAN_HAD_ITEMS="false"
+    fi
 }
 
 #==============================================================================
@@ -726,14 +1063,13 @@ show_startup_banner() {
 health_status=0
 perform_system_health_checks || health_status=$? # from doctor_utils.sh
 
-if [[ "$health_status" -eq 1 ]]; then # Critical failure from health check (find_executable exits before this)
+if [[ "$health_status" -eq 1 ]]; then # Critical failure from health check
     log_error_event "JellyMac" "CRITICAL system health checks failed. Exiting."
     exit 1
 elif [[ "$health_status" -eq 2 ]]; then # Optional checks failed
     log_warn_event "JellyMac" "Optional system health checks failed. Some features may be degraded or unavailable. Continuing."
 fi
-# If flock was missing, perform_system_health_checks (via find_executable) would have exited.
-# If we reach here, all critical checks passed, and flock is available.
+# If we reach here, all critical executables are present and critical paths were validated by doctor_utils.sh.
 
 # Acquire Single Instance Lock (AFTER health checks)
 _acquire_lock  # Ensure only one instance of JellyMac runs at a time
@@ -741,46 +1077,65 @@ _acquire_lock  # Ensure only one instance of JellyMac runs at a time
 show_startup_banner  # Call the startup banner function if enabled
 
 log_user_info "JellyMac" "🚀 JellyMac Starting..."
-log_user_info "JellyMac" "Version: v0.2.2 (2025-06-06)"
+log_user_info "JellyMac" "Version: v0.2.3 ($(date +%Y-%m-%d))"
 log_user_info "JellyMac" "JellyMac location: $JELLYMAC_PROJECT_ROOT"
 log_debug_event "JellyMac" "   Log Level: ${LOG_LEVEL:-INFO} (Effective Syslog Level: $SCRIPT_CURRENT_LOG_LEVEL)"
 if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" && -n "$CURRENT_LOG_FILE_PATH" ]]; then
     log_debug_event "JellyMac" "   Log File: $CURRENT_LOG_FILE_PATH"
     log_debug_event "JellyMac" "   (Retention: ${LOG_RETENTION_DAYS:-7} days)"
-else 
+else
     log_user_info "JellyMac" "   File Logging: Disabled or not configured. Logging to console only."
 fi
 
-if [[ ! -d "$STATE_DIR" ]]; then 
-    log_debug_event "JellyMac" "🛠️ State directory was created: $STATE_DIR" 
-else
+# STATE_DIR creation is handled by _acquire_lock if needed.
+if [[ -d "$STATE_DIR" ]]; then
     log_debug_event "JellyMac" "✅ State directory OK: $STATE_DIR"
 fi
 
-log_debug_event "JellyMac" "Verifying essential directory configurations..."
-declare -a critical_dest_paths_to_check=("${DEST_DIR_MOVIES:-}" "${DEST_DIR_SHOWS:-}" "${DEST_DIR_YOUTUBE:-}")
-declare -a local_operational_paths_to_check=("${DROP_FOLDER:-}" "${LOCAL_DIR_YOUTUBE:-}" "${ERROR_DIR:-}" "${LOG_DIR:-}" "${STATE_DIR:-}") # Added LOG_DIR and STATE_DIR for completeness
+log_debug_event "JellyMac" "Verifying feature-specific directory configurations..."
 
-for pth_to_check in "${critical_dest_paths_to_check[@]}"; do
-    if [[ -z "$pth_to_check" ]]; then 
-        log_error_event "JellyMac" "CRITICAL: Config for a critical destination path (e.g. DEST_DIR_MOVIES) is empty. Exiting."
-        exit 1 
-    else 
-        # Assuming doctor_utils.sh handled existence/creation and would have exited on failure.
-        log_debug_event "JellyMac" "✅ Critical Destination Directory '$pth_to_check' configuration is present (existence/accessibility checked by doctor_utils.sh)."
-    fi
-done
+# doctor_utils.sh::validate_config_filepaths has already performed comprehensive checks for:
+# - DEST_DIR_MOVIES, DEST_DIR_SHOWS, DROP_FOLDER, ERROR_DIR (required: non-empty config, exist/created, writable, network mounted)
+# - DEST_DIR_YOUTUBE (optional: if non-empty in config, then exist/created, writable, network mounted)
+# If any of those critical checks failed, jellymac.sh would have exited via doctor_utils.sh.
 
-for pth_to_check in "${local_operational_paths_to_check[@]}"; do
-    if [[ -z "$pth_to_check" ]]; then 
-        log_error_event "JellyMac" "CRITICAL: Config for an essential local path (DROP_FOLDER, ERROR_DIR, LOG_DIR, STATE_DIR etc.) is empty. Exiting."
+# Check LOCAL_DIR_YOUTUBE: Critical if YouTube features are enabled.
+if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
+    if [[ -z "${LOCAL_DIR_YOUTUBE:-}" ]]; then
+        log_error_event "JellyMac" "CRITICAL: LOCAL_DIR_YOUTUBE is not configured in lib/jellymac_config.sh but YouTube features are enabled. Exiting."
+        exit 1
+    elif [[ ! -d "$LOCAL_DIR_YOUTUBE" ]]; then
+        log_warn_event "JellyMac" "LOCAL_DIR_YOUTUBE ('$LOCAL_DIR_YOUTUBE') does not exist. Attempting to create."
+        if ! mkdir -p "$LOCAL_DIR_YOUTUBE"; then
+            log_error_event "JellyMac" "CRITICAL: Failed to create LOCAL_DIR_YOUTUBE ('$LOCAL_DIR_YOUTUBE'). Check permissions. Exiting."
+            exit 1
+        fi
+    elif [[ ! -w "$LOCAL_DIR_YOUTUBE" ]]; then
+        log_error_event "JellyMac" "CRITICAL: LOCAL_DIR_YOUTUBE ('$LOCAL_DIR_YOUTUBE') is not writable. Check permissions. Exiting."
         exit 1
     else
-        # Assuming doctor_utils.sh handled existence/creation and would have exited on failure.
-        log_debug_event "JellyMac" "✅ Local operational path '$pth_to_check' configuration is present (existence/creation checked by doctor_utils.sh)."
+        log_debug_event "JellyMac" "✅ LOCAL_DIR_YOUTUBE ('$LOCAL_DIR_YOUTUBE') is configured and accessible for YouTube features."
     fi
-done
-log_user_info "JellyMac" "Directory configuration verification complete ✅"
+
+    # Also ensure DEST_DIR_YOUTUBE is configured if YouTube features are on.
+    if [[ -z "${DEST_DIR_YOUTUBE:-}" ]]; then
+        log_error_event "JellyMac" "CRITICAL: DEST_DIR_YOUTUBE is not configured in lib/jellymac_config.sh but YouTube features are enabled. Exiting."
+    else
+        log_debug_event "JellyMac" "✅ DEST_DIR_YOUTUBE ('$DEST_DIR_YOUTUBE') is configured for YouTube features (accessibility checked by doctor_utils.sh)."
+    fi
+fi
+
+# Check LOG_DIR: Critical if file logging is enabled.
+if [[ "${LOG_ROTATION_ENABLED:-false}" == "true" ]]; then
+    if [[ -z "${LOG_DIR:-}" ]]; then
+        log_error_event "JellyMac" "CRITICAL: LOG_DIR is not configured in lib/jellymac_config.sh but LOG_ROTATION_ENABLED is true. Exiting."
+    else
+        log_debug_event "JellyMac" "✅ LOG_DIR ('$LOG_DIR') is configured for rotated logs (creation/writability handled by logging system)."
+    fi
+fi
+
+log_user_info "JellyMac" "✅ Feature-specific directory configuration checks complete."
+log_user_info "JellyMac" "✅ Core directory configurations validated."
 
 log_debug_event "JellyMac" "Verifying program files are executable..."
 for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PROCESS_MEDIA_ITEM_SCRIPT"; do
@@ -788,7 +1143,7 @@ for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PRO
         log_error_event "JellyMac" "CRITICAL: Essential program file '$helper_script_path' is not found or not executable. Exiting."
         exit 1
     fi
-done; log_user_info "JellyMac" "All essential program files ready ✅"
+done; log_user_info "JellyMac" "✅ All essential program files ready to go."
 
 if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
     log_user_info "JellyMac" "☕ Starting 'caffeinate' to prevent system sleep..."
@@ -803,33 +1158,31 @@ if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
     fi
 fi
 
+log_user_info "JellyMac" "✅ All critical checks passed and filepaths validated."
+
 if [[ -n "$HISTORY_FILE" ]]; then
-    if [[ ! -f "$HISTORY_FILE" ]]; then log_user_info "JellyMac" "History file '$HISTORY_FILE' will be created on first use.";
-    else log_debug_event "JellyMac" "Using history file: $HISTORY_FILE"; fi
+    if [[ ! -f "$HISTORY_FILE" ]]; then log_user_info "JellyMac" "📝 History file '$HISTORY_FILE' will be created on first use.";
+    else log_debug_event "JellyMac" "📝 Using history file: $HISTORY_FILE"; fi
 else log_warn_event "JellyMac" "HISTORY_FILE not configured. No history will be recorded."; fi
 
 # --- Store command paths as needed for runtime ---
-# After doctor_utils.sh has verified command availability, simply assign paths
-
-# Set pbpaste path (it must exist if clipboard features are enabled, otherwise doctor_utils would have failed)
+# doctor_utils.sh has verified command availability if features are enabled.
+PBPASTE_CMD=""
 if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" || "${ENABLE_CLIPBOARD_MAGNET:-false}" == "true" ]]; then
-    PBPASTE_CMD="pbpaste" 
+    PBPASTE_CMD="pbpaste" # Assumed available by doctor_utils.sh
 fi
 
-# macOS specific command path initializations
+CAFFEINATE_CMD_PATH=""
 if [[ "$(uname)" == "Darwin" ]]; then
-    # If we reached here with these features enabled, doctor_utils.sh already verified the commands exist
-    CAFFEINATE_CMD_PATH="caffeinate"
+    CAFFEINATE_CMD_PATH="caffeinate" # Assumed available by doctor_utils.sh
 fi
 
-# If we get here, directory checks are already done by validate_config_filepaths() in doctor_utils.sh
-
-log_user_info "JellyMac" "All critical checks passed and paths validated ✅"
+# --- Log Configuration Summary ---
 log_user_info "JellyMac" ""
-log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.2) ---"
-log_user_info "JellyMac" "⏱️  Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
+log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.3) ---"
+log_user_info "JellyMac" "   Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" ""
-log_user_info "JellyMac" "🎬 Media Destinations:"
+log_user_info "JellyMac" "  Media Destinations:"
 log_user_info "JellyMac" "   Movies  → ${DEST_DIR_MOVIES:-N/A}"
 log_user_info "JellyMac" "   Shows   → ${DEST_DIR_SHOWS:-N/A}"
 log_user_info "JellyMac" "   YouTube → ${DEST_DIR_YOUTUBE:-N/A}"
@@ -856,17 +1209,30 @@ if [[ -n "$PBPASTE_CMD" ]]; then
     _check_clipboard_magnet
 else log_user_info "JellyMac" "📋 Skipping initial clipboard checks ('pbpaste' not available or clipboard features disabled)."; fi
 
+if [[ "${ENABLE_CLIPBOARD_YOUTUBE:-false}" == "true" ]]; then
+    check_and_resume_youtube_queue
+fi
+
 log_user_status "JellyMac" "🔄 JellyMac is ready! Watching for new links or media every ${MAIN_LOOP_SLEEP_INTERVAL:-15} seconds..."
 log_user_status "JellyMac" "(Press Ctrl+C to exit any time)"
 while true; do
     manage_active_processors    
+    
+    # Time-based torrent cleanup (every 3 minutes, independent of main loop timing)
+    if [[ "${TRANSMISSION_AUTO_CLEANUP:-false}" == "true" ]]; then
+        current_time=$(date +%s)
+        if [[ $((current_time - last_torrent_cleanup)) -ge 180 ]]; then
+            cleanup_completed_torrents "JellyMac"
+            last_torrent_cleanup=$current_time
+        fi
+    fi
+    
     if [[ -n "$PBPASTE_CMD" ]]; then 
         _check_clipboard_youtube; 
         _check_clipboard_magnet; 
     fi
     process_drop_folder         
     
-    log_debug_event "JellyMac" "Main loop iter done. Sleeping ${MAIN_LOOP_SLEEP_INTERVAL:-15}s."
     sleep "${MAIN_LOOP_SLEEP_INTERVAL:-15}"
 done
 exit 0

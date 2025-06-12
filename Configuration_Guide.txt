@@ -81,11 +81,28 @@ configured paths are not found.
 
 MAX_CONCURRENT_PROCESSORS
 Purpose: Controls how many media items can be processed 
-simultaneously. Higher values can speed up batch processing
-but use more system resources.
+simultaneously for file transfers and organization.
 Units: Number of concurrent processes
 Range: 1-10 (recommended)
 Default: 2
+
+Processing Architecture:
+JellyMac uses different processing approaches optimized for each media type:
+
+Sequential Processing:
+• YouTube downloads - Always processed one at a time in a queue for reliability
+  (prevents overwhelming YouTube's servers and ensures stable downloads)
+• This setting does not affect YouTube processing
+
+Concurrent Processing: 
+• File organization and transfers - Uses this MAX_CONCURRENT_PROCESSORS setting
+• Torrent downloads - Multiple torrents can run simultaneously via Transmission
+• Background operations - Clipboard monitoring runs independently
+
+This hybrid approach balances performance with reliability. YouTube's complex
+download requirements benefit from sequential processing, while simpler file
+operations can safely run concurrently.
+
 Note: Consider your system's CPU cores and available RAM.
 Network-attached storage may benefit from lower values
 to avoid overwhelming the connection.
@@ -370,6 +387,16 @@ Example: "/Users/yourname/Documents/youtube_cookies.txt"
 How to get: Typically exported from your web browser
 using a browser extension designed for exporting cookies
 (search for "cookies.txt export" for your browser).
+
+YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO
+Purpose: Determines if each downloaded YouTube video is
+placed into its own subdirectory within DEST_DIR_YOUTUBE,
+or if files are placed loosely in DEST_DIR_YOUTUBE.
+The subfolder name will be derived from the video's title.
+Values:
+- "true": Create a subfolder for each video.
+- "false": Place video files directly into DEST_DIR_YOUTUBE (default).
+Default: "false"
 
 YTDLP_FORMAT
 Purpose: Specifies the preferred video and audio

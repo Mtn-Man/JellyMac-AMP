@@ -61,13 +61,16 @@ TRANSMISSION_REMOTE_AUTH="${TRANSMISSION_REMOTE_AUTH:-}"
 TORRENT_CLIENT_CLI_PATH="${TORRENT_CLIENT_CLI_PATH:-}"
 # STATE_DIR is expected to be set by jellymac_config.sh
 
+# Initialize logging system variables for set -u compatibility
+CURRENT_LOG_FILE_PATH="${CURRENT_LOG_FILE_PATH:-}"
+LAST_LOG_DATE_CHECKED="${LAST_LOG_DATE_CHECKED:-}"
+
 # shellcheck source=../lib/common_utils.sh
 # shellcheck disable=SC1091
 source "${LIB_DIR}/common_utils.sh" # For find_executable, record_transfer_to_history, play_sound_notification
 
 # --- Log Level & Prefix Initialization ---
-# SCRIPT_CURRENT_LOG_LEVEL is set by logging_utils.sh based on LOG_LEVEL from config
-# Use standard logging functions with "Torrent" module for 🧲 emoji branding
+# The SCRIPT_CURRENT_LOG_LEVEL (and _log_to_current_file function) will be inherited from the parent (jellymac.sh)
 
 #==============================================================================
 # MAGNET LINK PROCESSING FUNCTIONS
@@ -98,6 +101,26 @@ if ! [[ "$MAGNET_URL" =~ ^magnet:\?xt=urn:btih:[a-zA-Z0-9]{32,} ]]; then
     exit 1
 fi
 log_debug_event "Torrent" "Received Magnet link: ${MAGNET_URL:0:70}..."
+
+# Extract magnet hash for history checking
+MAGNET_HASH="${MAGNET_URL#*xt=urn:btih:}"
+MAGNET_HASH="${MAGNET_HASH%%&*}"  # Remove any additional parameters
+MAGNET_HASH="${MAGNET_HASH:0:40}" # Ensure exactly 40 chars
+log_debug_event "Torrent" "Extracted magnet hash: $MAGNET_HASH"
+
+# Check magnet download archive to prevent duplicates
+if [[ -n "${DOWNLOAD_ARCHIVE_MAGNET:-}" ]]; then
+    if [[ -f "$DOWNLOAD_ARCHIVE_MAGNET" ]] && grep -q "^magnet $MAGNET_HASH$" "$DOWNLOAD_ARCHIVE_MAGNET" 2>/dev/null; then
+        log_user_info "Torrent" "🔄 Magnet link already processed previously (found in archive)"
+        log_user_info "Torrent" "Hash: $MAGNET_HASH"
+        log_user_info "Torrent" "Skipping duplicate download to prevent bandwidth waste and file conflicts"
+        exit 0
+    else
+        log_debug_event "Torrent" "Magnet hash not found in archive. Proceeding with download."
+    fi
+else
+    log_debug_event "Torrent" "DOWNLOAD_ARCHIVE_MAGNET not configured. Archive checking disabled."
+fi
 
 # --- Pre-flight Checks ---
 if [[ -z "$TRANSMISSION_REMOTE_HOST" ]]; then # From jellymac_config.sh
@@ -188,6 +211,31 @@ else
     log_user_complete "Torrent" "🧲 Torrent added to queue"
 fi
 
+# Record successful magnet addition to archive (prevent future duplicates)
+if [[ -n "${DOWNLOAD_ARCHIVE_MAGNET:-}" ]]; then
+    archive_dir=$(dirname "$DOWNLOAD_ARCHIVE_MAGNET")
+    
+    # Ensure archive directory exists
+    if [[ ! -d "$archive_dir" ]]; then
+        if mkdir -p "$archive_dir"; then
+            log_debug_event "Torrent" "Created magnet archive directory: $archive_dir"
+        else
+            log_warn_event "Torrent" "Failed to create magnet archive directory: $archive_dir. Archive will not be updated."
+        fi
+    fi
+    
+    # Record the magnet hash in archive (if directory creation succeeded)
+    if [[ -d "$archive_dir" ]]; then
+        if echo "magnet $MAGNET_HASH" >> "$DOWNLOAD_ARCHIVE_MAGNET"; then
+            log_debug_event "Torrent" "Added magnet hash to archive: $MAGNET_HASH"
+        else
+            log_warn_event "Torrent" "Failed to write to magnet archive file: $DOWNLOAD_ARCHIVE_MAGNET"
+        fi
+    fi
+else
+    log_debug_event "Torrent" "DOWNLOAD_ARCHIVE_MAGNET not configured. Magnet hash not recorded for future duplicate prevention."
+fi
+
 # --- Post-Action ---
 # Record the successful transfer in history using common_utils.sh
 # This runs if exit code was 0, or if it was a non-fatal non-zero (like duplicate)
@@ -204,10 +252,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     if [[ "${ENABLE_DESKTOP_NOTIFICATIONS:-false}" == "true" ]]; then # From jellymac_config.sh
       send_desktop_notification "JellyMac - Torrent" "$safe_message"
     fi
-    
-    # Use the centralized sound notification function
-    # play_sound_notification "task_success" "$SCRIPT_NAME"
 fi
+
 # Use the existing TRANSMISSION_REMOTE_HOST config for web interface URL
 log_user_info "Torrent" "📊 Track progress at: http://${TRANSMISSION_REMOTE_HOST}/transmission/web/"
 log_user_complete "Torrent" "✅ Magnet link processing completed successfully"
