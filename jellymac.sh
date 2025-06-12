@@ -56,12 +56,12 @@ EXAMPLE_PATH="${SCRIPT_DIR}/lib/jellymac_config.example.sh"
 # Auto-setup configuration if needed
 if [[ ! -f "$CONFIG_PATH" ]]; then
     if [[ -f "$EXAMPLE_PATH" ]]; then
-        echo "                  Welcome to JellyMac!"
+        echo "                 Welcome to JellyMac!"
         echo ""
-        echo "   It looks like you haven't set up your configuration file yet."
+        echo "It looks like you haven't set up your configuration file yet."
         echo ""
-        echo "   Would you like to create a config file with default settings?"
-        echo "   This will copy: jellymac_config.example.sh → jellymac_config.sh"
+        echo "Would you like to create a config file with default settings?"
+        echo "This will copy: jellymac_config.example.sh → jellymac_config.sh"
         echo ""
         
         read -r -p "Create default config? (Y/n): " response

@@ -16,7 +16,8 @@
 # Your   Shows library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Shows) 
 # Your YouTube library folder
 
-DROP_FOLDER="$HOME/Downloads/JellyDrop"                 
+DROP_FOLDER="$HOME/Downloads/JellyDrop" 
+                
 DEST_DIR_MOVIES="$HOME/Movies/Movies"                   
 DEST_DIR_SHOWS="$HOME/Movies/Shows"                     
 DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"                
