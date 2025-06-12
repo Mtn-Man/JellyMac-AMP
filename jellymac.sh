@@ -627,6 +627,48 @@ is_item_being_processed() {
 # Functions for detecting and processing media from various sources
 
 #==============================================================================
+# Function: is_youtube_url_in_history
+# Description: Checks if a YouTube URL exists in download archive or history
+# Parameters:
+#   $1 - YouTube URL to check
+# Returns:
+#   0 - URL found in history/archive (duplicate)
+#   1 - URL not found (new content)
+#==============================================================================
+is_youtube_url_in_history() {
+    local url="$1"
+    
+    # Check download archive first
+    if [[ -n "${DOWNLOAD_ARCHIVE_YOUTUBE:-}" && -f "${DOWNLOAD_ARCHIVE_YOUTUBE}" ]]; then
+        # Extract video ID and check archive
+        local video_id=""
+        case "$url" in
+            *"watch?v="*)
+                video_id="${url#*watch?v=}"
+                video_id="${video_id%%&*}"
+                ;;
+            *"youtu.be/"*)
+                video_id="${url#*youtu.be/}"
+                video_id="${video_id%%\?*}"
+                ;;
+        esac
+        
+        if [[ -n "$video_id" ]] && grep -q "youtube $video_id" "$DOWNLOAD_ARCHIVE_YOUTUBE" 2>/dev/null; then
+            return 0  # Found in archive
+        fi
+    fi
+    
+    # Check history file
+    if [[ -n "${HISTORY_FILE:-}" && -f "${HISTORY_FILE}" ]]; then
+        if grep -Fq "$url" "$HISTORY_FILE" 2>/dev/null; then
+            return 0  # Found in history
+        fi
+    fi
+    
+    return 1  # Not found
+}
+
+#==============================================================================
 # Function: check_and_resume_youtube_queue
 # Description: Checks for existing YouTube queue on startup and resumes automatically
 # Parameters: None
@@ -797,6 +839,13 @@ _check_clipboard_youtube() {
                     return
                 fi
                 
+                # Check history BEFORE playing sound - early exit for duplicates
+                if is_youtube_url_in_history "$trimmed_cb"; then
+                    log_user_info "JellyMac" "📋 YouTube URL found in history - skipping to prevent duplicate download"
+                    log_user_info "JellyMac" "URL: \'${trimmed_cb:0:70}...\'"
+                    return
+                fi
+                
                 # Check if this is a playlist URL
                 if [[ "$trimmed_cb" == *"playlist?list="* ]]; then
                     log_user_info "JellyMac" "📋 Detected YouTube playlist: \'${trimmed_cb:0:70}...\'"
@@ -806,6 +855,7 @@ _check_clipboard_youtube() {
                 fi
                 
                 log_user_info "JellyMac" "📺 Detected YouTube URL: \'${trimmed_cb:0:70}...\'"
+                # Sound only plays for genuinely new URLs
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
                 
                 # Check if YouTube processing is already active
@@ -913,7 +963,17 @@ _check_clipboard_magnet() {
                     fi
                 fi
                 
+                # Check history file BEFORE playing sound
+                if [[ -n "${HISTORY_FILE:-}" && -f "${HISTORY_FILE}" ]]; then
+                    if grep -Fq "$MAGNET_HASH" "$HISTORY_FILE" 2>/dev/null; then
+                        log_user_info "JellyMac" "🔄 Magnet link found in history - skipping to prevent duplicate download"
+                        log_user_info "JellyMac" "Hash: $MAGNET_HASH"
+                        return
+                    fi
+                fi
+                
                 log_user_info "JellyMac" "🧲 Detected Magnet URL: '${trimmed_cb:0:70}...'"
+                # Sound only plays for genuinely new magnet links
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
 
                 # Process magnet in background (non-blocking)
@@ -1179,7 +1239,7 @@ fi
 
 # --- Log Configuration Summary ---
 log_user_info "JellyMac" ""
-log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.3) ---"
+log_user_info "JellyMac" "--- JellyMac Configuration Summary (v0.2.4) ---"
 log_user_info "JellyMac" "   Check Interval: ${MAIN_LOOP_SLEEP_INTERVAL:-15}s | Max Processors: ${MAX_CONCURRENT_PROCESSORS:-2}"
 log_user_info "JellyMac" ""
 log_user_info "JellyMac" "  Media Destinations:"
