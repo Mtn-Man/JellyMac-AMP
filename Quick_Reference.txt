@@ -8,26 +8,34 @@
 
 COMMON TASKS
 -----------
-1. Start JellyMac:
+1. Install JellyMac
+   Open Terminal, copy and paste:
+
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Mtn-Man/JellyMac/dev/install.sh)"
+
+2. Start JellyMac:
    Open Terminal, type:
 
    cd ~/JellyMac && ./jellymac.sh
 
-2. Stop JellyMac:
+3. Stop JellyMac:
    Press Ctrl+C in the Terminal window
 
-3. Add Media:
+4. Add Media:
    * Movies/Shows: Drop files in DROP_FOLDER
    * YouTube: Copy video URL
    * Torrents: Copy magnet link
 
-4. Check Progress:
+5. Check Progress:
    * Watch Terminal window
    * Check notification center
    * Look in destination folders
 
 USEFUL COMMANDS
 --------------
+*Update Homebrew:
+  brew update && brew upgrade
+
 * Update yt-dlp:
   brew upgrade yt-dlp
 

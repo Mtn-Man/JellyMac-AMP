@@ -87,14 +87,14 @@ if [[ ! -f "$CONFIG_PATH" ]]; then
                             
                             open -a TextEdit "$CONFIG_PATH"
                             
-                            echo "Config file opened! Edit your paths and save, then restart JellyMac."
+                            echo "Config file opened! Edit your paths and save, then restart JellyMac: cd $SCRIPT_DIR && ./jellymac.sh"
                             exit 0
                             ;;
                         ""|2|two)
                             echo "Continuing with default local setup..."
                             echo "You can edit lib/jellymac_config.sh later if needed."
                             echo "To edit:" 
-                            echo "   1. Navigate to the lib folder inside your JellyMac directory"
+                            echo "   1. Navigate to the lib folder inside your JellyMac directory (e.g., cd $SCRIPT_DIR/lib)"
                             echo "   2. Open lib/jellymac_config.sh with a text editor (e.g., nano, TextEdit)"
                             echo "   3. Key paths to update include:"
                             echo "      - DROP_FOLDER (where new media files are dropped)"
