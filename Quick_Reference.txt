@@ -46,6 +46,17 @@ USEFUL COMMANDS
   cd ~/JellyMac/logs
   cat jellymac_log_YYYY-MM-DD.log
 
+* Auto-install JellyMac:
+  JELLYMAC_AUTO_YES=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Mtn-Man/JellyMac/dev/install.sh)"
+
+* Uninstall JellyMac:
+  JELLYMAC_UNINSTALL=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Mtn-Man/JellyMac/dev/install.sh)"
+
+  or
+
+  rm -rf ~/JellyMac
+
+
 COMMON FIXES
 -----------
 * Permission denied:
