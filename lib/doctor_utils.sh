@@ -355,11 +355,11 @@ is_volume_mounted() {
 #   1 if any validation fails
 # Side Effects: May create directories if AUTO_CREATE_MISSING_DIRS is true
 
-# Main validation function, updated with volume mount checks
 validate_config_filepaths() {
     local log_prefix="Doctor"
     log_debug_event "$log_prefix" "🔍 Validating configuration filepaths, this may take a moment..."
     local validation_failed=false
+    local first_run_setup=false
     
     # --- Required Directories ---
     # These must exist for the system to function
@@ -375,6 +375,23 @@ validate_config_filepaths() {
     local optional_dirs=(
         "${DEST_DIR_YOUTUBE:-}"     "Destination folder for YouTube downloads (optional)"
     )
+    
+    # Check if this appears to be a first-time setup
+    local missing_required_count=0
+    for ((i=0; i<${#required_dirs[@]}; i+=2)); do
+        local dir="${required_dirs[i]}"
+        if [[ -n "$dir" && ! -d "$dir" ]]; then
+            ((missing_required_count++))
+        fi
+    done
+    
+    # If multiple required dirs are missing, this is likely first-time setup
+    if [[ $missing_required_count -ge 2 ]]; then
+        first_run_setup=true
+        echo
+        log_user_info "$log_prefix" "🏗️  Setting up your media folders for the first time..."
+        echo "Creating the following folders for your media library:"
+    fi
     
     # Check each required directory
     for ((i=0; i<${#required_dirs[@]}; i+=2)); do
@@ -403,7 +420,12 @@ validate_config_filepaths() {
             # Only attempt to create directories if NOT in /Volumes or if volume is mounted
             if [[ "$dir" != "/Volumes/"* ]] || is_volume_mounted "$dir"; then
                 if [[ "${AUTO_CREATE_MISSING_DIRS:-false}" == "true" ]]; then
-                    log_warn_event "$log_prefix" "⚠️ Folder does not exist, creating: $dir ($description)"
+                    if [[ "$first_run_setup" == "true" ]]; then
+                        log_user_info "$log_prefix" "  📁 $dir"
+                    else
+                        log_user_info "$log_prefix" "Creating folder: $dir ($description)"
+                    fi
+                    
                     if ! mkdir -p "$dir"; then
                         log_error_event "$log_prefix" "❌ Could not create folder: $dir"
                         if [[ "$dir" == /Volumes/* ]]; then
@@ -430,6 +452,12 @@ validate_config_filepaths() {
         fi
     done
     
+    # Show completion message for first-run setup
+    if [[ "$first_run_setup" == "true" && "$validation_failed" == "false" ]]; then
+        echo
+        log_user_info "$log_prefix" "✅ Media folders created successfully!"
+    fi
+    
     # Check each optional directory (only if they're specified)
     for ((i=0; i<${#optional_dirs[@]}; i+=2)); do
         local dir="${optional_dirs[i]}"
@@ -445,9 +473,9 @@ validate_config_filepaths() {
         if [[ "$dir" == /Volumes/* ]] && ! is_volume_mounted "$dir"; then
             local volume_name
             [[ "$dir" =~ ^/Volumes/([^/]+) ]] && volume_name="${BASH_REMATCH[1]}"
-            log_warn_event "$log_prefix" "⚠️ Network folder '$volume_name' is not connected for optional feature: $dir ($description)"
+            log_user_info "$log_prefix" "💡 Network folder '$volume_name' is not connected for optional feature: $dir ($description)"
             log_user_info "$log_prefix" "Connect '$volume_name' in Finder if you want to use this feature."
-            # Don't mark as failure for optional dirs, just warn
+            # Don't mark as failure for optional dirs, just inform
             continue
         fi
         
@@ -455,7 +483,7 @@ validate_config_filepaths() {
             # Only attempt to create directories if NOT in /Volumes or if volume is mounted
             if ! [[ "$dir" =~ ^/Volumes/ ]] || is_volume_mounted "$dir"; then
                 if [[ "${AUTO_CREATE_MISSING_DIRS:-false}" == "true" ]]; then
-                    log_warn_event "$log_prefix" "⚠️ Optional folder does not exist, creating: $dir ($description)"
+                    log_user_info "$log_prefix" "Creating optional folder: $dir ($description)"
                     if ! mkdir -p "$dir"; then
                         log_error_event "$log_prefix" "❌ Failed to create optional folder: $dir"
                         if [[ "$dir" == /Volumes/* ]]; then
@@ -464,7 +492,7 @@ validate_config_filepaths() {
                         validation_failed=true
                     fi
                 else
-                    log_warn_event "$log_prefix" "⚠️ Optional folder does not exist: $dir ($description)"
+                    log_user_info "$log_prefix" "💡 Optional folder does not exist: $dir ($description)"
                     log_user_info "$log_prefix" "Create this folder manually or set AUTO_CREATE_MISSING_DIRS=true in config."
                     # Don't mark as failure for optional dirs
                 fi
@@ -475,8 +503,6 @@ validate_config_filepaths() {
             validation_failed=true
         fi
     done
-    
-    # ... rest of the function remains the same
     
     # Final validation result
     if [[ "$validation_failed" == "true" ]]; then

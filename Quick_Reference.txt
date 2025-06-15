@@ -1,52 +1,77 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     J E L L Y M A C                         │
-│          Automated Media Assistant for macOS                │
+│          Automated Video Downloader for macOS               │
 └─────────────────────────────────────────────────────────────┘
 
-                Quick Reference Sheet
-=================================================================
+                  Quick Reference Sheet
+===============================================================
 
 COMMON TASKS
------------
-1. Start JellyMac:
-   Open Terminal, type:
+------------
+1. Install JellyMac
+
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Mtn-Man/JellyMac/dev/install.sh)"
+
+2. Start JellyMac:
 
    cd ~/JellyMac && ./jellymac.sh
 
-2. Stop JellyMac:
+3. Stop JellyMac:
+
    Press Ctrl+C in the Terminal window
 
-3. Add Media:
-   * Movies/Shows: Drop files in DROP_FOLDER
-   * YouTube: Copy video URL
-   * Torrents: Copy magnet link
+4. Add Media:
+   • Movies/Shows: Drop files in DROP_FOLDER
+   • YouTube: Copy video URL
+   • Torrents: Copy magnet link
 
-4. Check Progress:
-   * Watch Terminal window
-   * Check notification center
-   * Look in destination folders
+5. Check Progress:
+   • Watch Terminal window
+   • Check notification center
+   • Look in destination folders
 
 USEFUL COMMANDS
 --------------
-* Update yt-dlp:
+• Update Homebrew (and dependencies):
+
+  brew update && brew upgrade
+
+• Update yt-dlp:
+
   brew upgrade yt-dlp
 
-* Check Transmission:
+• Check Transmission:
+
   transmission-remote --list
 
-* View Logs:
+• View Logs:
+
   cd ~/JellyMac/logs
   cat jellymac_log_YYYY-MM-DD.log
 
+• Auto-install JellyMac:
+
+  JELLYMAC_AUTO_YES=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Mtn-Man/JellyMac/dev/install.sh)"
+
+• Uninstall JellyMac:
+
+  JELLYMAC_UNINSTALL=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Mtn-Man/JellyMac/dev/install.sh)"
+
+  or
+
+  rm -rf ~/JellyMac
+
+
 COMMON FIXES
 -----------
-* Permission denied:
+• Permission denied:
+
   chmod 755 [folder-name]
 
-* Network share issues:
+• Network share issues:
   Finder > Go > Connect to Server...
   
-* Missing dependencies:
+• Missing dependencies:
   Edit lib/jellymac_config.sh and set:
   AUTO_INSTALL_DEPENDENCIES="true"
   (Requires Homebrew installed)
