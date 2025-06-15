@@ -8,11 +8,16 @@ JellyMac is a lightweight tool that simplifies managing your media library. Whet
 
 ## WHO THIS IS FOR
 
-**Anyone who downloads YouTube videos** and wants them organized with a readable name automatically  
-**People who collect movies and TV shows** and want seamless organization  
+**Anyone who downloads YouTube videos** and wants them organized with a readable name automatically 
+
+**People who collect movies and TV shows** and want seamless organization 
+
 **Mac users who want powerful automation** that works reliably behind the scenes  
-**Content creators and researchers** who need reliable video archiving and consistent network transfers  
+
+**Content creators and researchers** who need reliable video archiving and consistent network transfers 
+
 **Home media enthusiasts** who want professional-quality organization
+
 **You**  someone who appreciates invisible software that saves you time and stress
 
 ---
@@ -20,20 +25,31 @@ JellyMac is a lightweight tool that simplifies managing your media library. Whet
 ## WHAT IT DOES
 
 ### Core Automation
-🎬 **Complete YouTube Workflow** - Copy links → Download → Perfect file names → Library → Done! 
-🧲 **Complete Magnet Workflow** - Copy links → Transmission → Download → Sort → Library → Done!  
+
+🎬 **Complete YouTube Workflow** - Copy links → Download → Perfect file names → Library → Done!
+
+🧲 **Complete Magnet Workflow** - Copy links → Transmission → Download → Sort → Library → Done!
+
 📁 **Intelligent File Organization** - Movies and TV shows automatically sorted with clean names  
+
 🔄 **Background Processing** - Everything happens automatically while you work or go grab coffee  
 
-### Smart Features  
-🛡️ **Never Download Twice** - Remembers what you've downloaded across restarts  
+### Smart Features 
+
+🛡️ **Never Download Twice** - Remembers what you've downloaded across restarts 
+
 📱 **Progress Notifications** - Desktop alerts when downloads complete  
+
 🌐 **Network Smart** - Works with local folders or network drives/NAS  
+
 ⚡ **Queue Management** - Copy multiple links, they process automatically  
 
 ### Media Server Integration
-🪼 **Jellyfin Integration** - Auto-scan libraries when new content arrives  
+
+🪼 **Jellyfin Integration** - Auto-scan libraries when new content arrives
+
 📺 **Plex Support** - Works with Plex media servers  
+
 🖥️ **No Server Installation** - Your Mac runs JellyMac, media server can be anywhere
 
 ---
