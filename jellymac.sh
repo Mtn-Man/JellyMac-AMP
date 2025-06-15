@@ -13,7 +13,7 @@
 #
 # Author: Eli Sher (Mtn_Man)
 # Version: v0.2.4
-# Last Updated: 2025-06-13
+# Last Updated: 2025-06-15
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -397,6 +397,61 @@ _ACTIVE_YOUTUBE_PID=""                    # Track the PID of active YouTube down
 # --- Torrent Cleanup Tracking ---
 last_torrent_cleanup=0                    # Timestamp of last cleanup (Unix timestamp) 
 
+# --- Caffeinate Management Functions ---
+# Function: _stop_caffeinate_if_running
+# Description: Stops caffeinate if it's currently running
+# Parameters: None
+# Returns: None
+_stop_caffeinate_if_running() {
+    if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" >/dev/null 2>&1; then
+        log_debug_event "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
+        kill "$CAFFEINATE_PROCESS_ID" 2>/dev/null || log_warn_event "JellyMac" "Failed to stop caffeinate process"
+        CAFFEINATE_PROCESS_ID=""
+    fi
+}
+
+# Function: _start_caffeinate_if_needed
+# Description: Starts caffeinate if not already running and if we have active processes
+# Parameters: None
+# Returns: None
+_start_caffeinate_if_needed() {
+    # Only proceed if we're on macOS and caffeinate is available
+    if [[ "$(uname)" != "Darwin" || -z "$CAFFEINATE_CMD_PATH" ]]; then
+        return
+    fi
+
+    # Check if we have any active processes that need caffeinate
+    local needs_caffeinate="false"  # Use string instead of boolean for Bash 3.2
+
+    # Check for active YouTube download
+    if [[ "$_YOUTUBE_PROCESSING_ACTIVE" == "true" ]]; then
+        needs_caffeinate="true"
+    fi
+
+    # Check for active media processors
+    if [[ -n "$_ACTIVE_PROCESSOR_INFO_STRING" ]]; then
+        needs_caffeinate="true"
+    fi
+
+    # Start caffeinate if needed and not already running
+    if [[ "$needs_caffeinate" == "true" ]]; then
+        if [[ -z "$CAFFEINATE_PROCESS_ID" ]] || ! ps -p "$CAFFEINATE_PROCESS_ID" >/dev/null 2>&1; then
+            log_debug_event "JellyMac" "Starting caffeinate for active processes..."
+            "$CAFFEINATE_CMD_PATH" -i &
+            CAFFEINATE_PROCESS_ID=$!
+            if ps -p "$CAFFEINATE_PROCESS_ID" >/dev/null 2>&1; then
+                log_debug_event "JellyMac" "Caffeinate started with PID: $CAFFEINATE_PROCESS_ID"
+            else
+                log_warn_event "JellyMac" "Failed to start caffeinate process"
+                CAFFEINATE_PROCESS_ID=""
+            fi
+        fi
+    else
+        # No active processes need caffeinate, stop it if running
+        _stop_caffeinate_if_running
+    fi
+}
+
 #==============================================================================
 # PROCESS MANAGEMENT FUNCTIONS
 #==============================================================================
@@ -439,11 +494,10 @@ graceful_shutdown_and_cleanup() {
         _handle_interrupted_youtube_download
     fi
     
-    #shellcheck disable=SC2317
-    if [[ -n "$CAFFEINATE_PROCESS_ID" ]] && ps -p "$CAFFEINATE_PROCESS_ID" > /dev/null; then
-        log_user_info "JellyMac" "Stopping caffeinate (PID: $CAFFEINATE_PROCESS_ID)..."
-        kill "$CAFFEINATE_PROCESS_ID" 2>/dev/null || log_warn_event "JellyMac" "Caffeinate PID $CAFFEINATE_PROCESS_ID not found or already exited."
-    fi
+    # Stop caffeinate if running
+    # shellcheck disable=SC2317
+    _stop_caffeinate_if_running
+    
     #shellcheck disable=SC2317
     log_debug_event "JellyMac" "Cleaning up any active child processes..."
     #shellcheck disable=SC2317
@@ -530,36 +584,47 @@ manage_active_processors() {
     [[ -z "$_ACTIVE_PROCESSOR_INFO_STRING" ]] && return 
 
     local still_running_string="" 
-    local old_ifs="$IFS"; IFS='|'
-    set -f 
+    local old_ifs="$IFS"
+    IFS='|'
+    set -f  # Disable globbing for safety
     local processor_string_modified
     processor_string_modified="${_ACTIVE_PROCESSOR_INFO_STRING//|||/|}"
-    local p_info_array=() # Initialize for Bash 3.2
-    # Replace: read -ra p_info_array <<< "$processor_string_modified"
+    local p_info_array=()  # Initialize empty array for Bash 3.2
+    
+    # Bash 3.2 compatible array population
     local old_ifs_map="$IFS"
     IFS='|'
     set -f
-    read -r -a p_info_array <<< "$processor_string_modified"
+    read -r -a p_info_array <<< "$processor_string_modified"  # Use read -r -a for Bash 3.2
     set +f
     IFS="$old_ifs_map"
     set +f 
     IFS="$old_ifs"
-    local entry_count=${#p_info_array[@]}
+    
+    # Get array length in Bash 3.2 compatible way
+    local entry_count=0
+    for _ in "${p_info_array[@]}"; do
+        entry_count=$((entry_count + 1))
+    done
 
     if [[ $entry_count -eq 0 || $((entry_count % 4)) -ne 0 ]]; then
         if [[ -n "$_ACTIVE_PROCESSOR_INFO_STRING" ]]; then 
              log_warn_event "JellyMac" "manage_active_processors: _ACTIVE_PROCESSOR_INFO_STRING ('$_ACTIVE_PROCESSOR_INFO_STRING') is malformed. Clearing."
         fi
         _ACTIVE_PROCESSOR_INFO_STRING="" 
+        _start_caffeinate_if_needed  # Update caffeinate state after clearing
         return
     fi
     
-    for ((idx=0; idx<entry_count; idx+=4)); do
-        local pid="${p_info_array[idx]}"
-        local script_full_path="${p_info_array[idx+1]}"
-        local item_identifier="${p_info_array[idx+2]}" 
-        local ts_launch="${p_info_array[idx+3]}"
-        local script_basename; script_basename=$(basename "$script_full_path")
+    # Process entries in groups of 4 (Bash 3.2 compatible)
+    local idx=0
+    while [[ $idx -lt $entry_count ]]; do
+        local pid="${p_info_array[$idx]}"
+        local script_full_path="${p_info_array[$((idx + 1))]}"
+        local item_identifier="${p_info_array[$((idx + 2))]}" 
+        local ts_launch="${p_info_array[$((idx + 3))]}"
+        local script_basename
+        script_basename=$(basename "$script_full_path")
 
         if ps -p "$pid" > /dev/null; then 
             # Bash 3.2 compatible string concatenation
@@ -575,10 +640,13 @@ manage_active_processors() {
                  log_debug_event "JellyMac" "manage_active_processors: wait for PID $pid failed or already reaped. Assuming finished."
             fi
             log_debug_event "JellyMac" "✅ Processor PID $pid ($script_basename for '${item_identifier:0:70}...') completed. Exit status: $exit_status."
-            
         fi
+        idx=$((idx + 4))
     done
-    _ACTIVE_PROCESSOR_INFO_STRING="$still_running_string" 
+    
+    _ACTIVE_PROCESSOR_INFO_STRING="$still_running_string"
+    
+    _stop_caffeinate_if_running
 }
 
 # Function: is_item_being_processed
@@ -871,6 +939,9 @@ _check_clipboard_youtube() {
                 log_user_info "JellyMac" "🎬 Starting YouTube download..."
                 log_user_info "JellyMac" "💡 You may continue copying links - they'll be queued automatically!"
                 
+                # Start caffeinate for YouTube download
+                _start_caffeinate_if_needed
+                
                 # Fork background monitoring loop
                 {
                     local last_torrent_cleanup_subshell="$last_torrent_cleanup" # Initialize from global for this subshell's timer
@@ -922,6 +993,9 @@ _check_clipboard_youtube() {
                 _YOUTUBE_PROCESSING_ACTIVE=""
                 kill "$background_loop_pid" 2>/dev/null || true
                 wait "$background_loop_pid" 2>/dev/null || true
+                
+                # Update caffeinate state
+                _start_caffeinate_if_needed
                 
                 ;;
         esac
@@ -1026,7 +1100,7 @@ process_drop_folder() {
         # Bash 3.2 compatible: Use case statement instead of regex
         case "$item_basename" in
             .DS_Store|desktop.ini|.stfolder|.stversions|.localized|._*|*.part|*.crdownload)
-                log_debug_event "JellyMac" "Skipping common/temp file in DROP_FOLDER: '$item_basename'"; continue
+                continue
                 ;;
         esac
 
@@ -1084,6 +1158,9 @@ process_drop_folder() {
             log_user_info "JellyMac" "🚀 Launched Media Processor (PID $child_pid). Active processors: $((p_count+1))."
             send_desktop_notification "JellyMac: Processing" "Item: ${item_basename:0:60}..."
             items_processed=$((items_processed + 1))
+            
+            # Start caffeinate for media processing
+            _start_caffeinate_if_needed
         else
             log_warn_event "JellyMac" "🚦 Max concurrent processors (${MAX_CONCURRENT_PROCESSORS:-2}) reached. Deferring processing for '$item_basename' from DROP_FOLDER."
         fi
@@ -1096,6 +1173,9 @@ process_drop_folder() {
     else
         _LAST_DROP_SCAN_HAD_ITEMS="false"
     fi
+    
+    # Update caffeinate state at end of function
+    _start_caffeinate_if_needed
 }
 
 #==============================================================================
@@ -1204,19 +1284,6 @@ for helper_script_path in "$HANDLE_YOUTUBE_SCRIPT" "$HANDLE_MAGNET_SCRIPT" "$PRO
         exit 1
     fi
 done; log_user_info "JellyMac" "✅ All essential program files ready to go."
-
-if [[ -n "$CAFFEINATE_CMD_PATH" ]]; then
-    log_user_info "JellyMac" "☕ Starting 'caffeinate' to prevent system sleep..."
-    "$CAFFEINATE_CMD_PATH" -i & 
-    CAFFEINATE_PROCESS_ID=$!
-    # Validate caffeinate started successfully
-    if ! ps -p "$CAFFEINATE_PROCESS_ID" >/dev/null 2>&1; then
-        log_warn_event "JellyMac" "Failed to start caffeinate process."
-        CAFFEINATE_PROCESS_ID=""
-    else
-        log_user_info "JellyMac" "☕ Caffeinate running with PID: $CAFFEINATE_PROCESS_ID"
-    fi
-fi
 
 log_user_info "JellyMac" "✅ All critical checks passed and filepaths validated."
 
