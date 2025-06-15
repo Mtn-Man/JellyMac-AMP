@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2034
 
 #==============================================================================
 # JELLYMAC CONFIGURATION
@@ -8,23 +9,28 @@
 # QUICK START: Configure these essential paths first
 ################################################################################
 
-# === REQUIRED PATHS (Must be configured before first run) ===
+# === REQUIRED PATHS (Must be configured before running JellyNac) ===
 
 # Note: Only edit the sections between the "===" below (e.g. "$HOME/Movies/Movies" -> "/Volumes/Media/Movies")
 
+# Your Drop folder where you can place already downloaded movie or show files to be sorted, renamed and optionally transferred to a server
 # Your  Movies library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Movies)
 # Your   Shows library folder (if using a separate server, set to your network share drive library e.g. /Volumes/Media/Shows) 
 # Your YouTube library folder
 
+
 DROP_FOLDER="$HOME/Downloads/JellyDrop" 
                 
-DEST_DIR_MOVIES="$HOME/Movies/Movies"                   
-DEST_DIR_SHOWS="$HOME/Movies/Shows"                     
+DEST_DIR_MOVIES="$HOME/Movies/Movies"
+
+DEST_DIR_SHOWS="$HOME/Movies/Shows"
+
 DEST_DIR_YOUTUBE="$HOME/Movies/YouTube"                
+
 
 # === JELLYFIN SERVER (Optional - leave blank to disable) ===
 
-JELLYFIN_SERVER=""                                      # Your Jellyfin server URL (e.g. "http://your-jellyfin-server-ip:8096" or http://localhost:8096)
+JELLYFIN_SERVER="http://your-jellyfin-server-ip:8096"   # Your specific Jellyfin server URL (e.g. http://localhost:8096 or http://192.168.0.100:8096) 
 JELLYFIN_API_KEY="your-jellyfin-api-key-here"           # Generate in Jellyfin Settings → API Keys
 
 # === FEATURES ===
@@ -81,15 +87,20 @@ DOWNLOAD_ARCHIVE_MAGNET="${JELLYMAC_PROJECT_ROOT}/.magnet_download_archive.txt" 
 COOKIES_ENABLED="false"                                                               # Enable for age-restricted/private videos
 COOKIES_FILE="/path/to/your/cookies.txt"                                              # Export from browser if cookies enabled
 YOUTUBE_CREATE_SUBFOLDER_PER_VIDEO="false"                                            # Create subfolder for each video (true/false)
-YTDLP_FORMAT="bv[height<=1080][vcodec=hevc]+ba[acodec=aac]/bv[height<=1080]+ba/best"  # Video quality preference (default is 1080p for quality/file size balance) (configure to your needs)
-# For older macOS versions without good HEVC hardware decoding, consider changing "[vcodec=hevc]" above to the older standard "[vcodec=h264]"
+
+# Video quality preference (default is 1440p for quality/file size balance, configure to your needs)
+
+YTDLP_FORMAT="bv[height<=1440][vcodec=vp9]+ba[acodec=aac]/bv[height<=1440][vcodec=vp9]+ba/bv[height<=1080][vcodec=vp9]+ba/best"
+# For Apple Silicon Macs (M1/M2/M3) with AV1 hardware support, you can use instead for better file sizes:
+# YTDLP_FORMAT="bv[height<=1440][vcodec=av1]+ba[acodec=opus]/bv[height<=1440][vcodec=vp9]+ba/bv[height<=1440]+ba/bv[height<=1080][vcodec=av1]+ba/best"
+
 YTDLP_OPTS=(                                                                          
     --no-playlist                    # Download single video only, not entire playlist
     --merge-output-format mp4        # Combine video/audio into .mp4 container
     --embed-metadata                 # Include video title, description in file
     --embed-thumbnail                # Embed video thumbnail as cover art
     --restrict-filenames             # Use only safe characters in filenames
- #  --sponsorblock-remove all        # Remove sponsored segments automatically
+ #  --sponsorblock-remove all        # Remove sponsored segments automatically; this sometimes fails, so use with caution
  #  --write-subs                     # Download subtitles if available (creates separate .srt or .vtt files)
  #  --sub-langs "en.*,en,es"         # Preferred subtitle languages (e.g., all English variants, then Spanish)
  #  --write-auto-subs                # Download automatic (generated) subtitles if no human-made ones are available

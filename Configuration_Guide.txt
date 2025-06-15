@@ -402,11 +402,34 @@ YTDLP_FORMAT
 Purpose: Specifies the preferred video and audio
 format/quality string for yt-dlp to download.
 Required: Yes, if ENABLE_CLIPBOARD_YOUTUBE is "true".
-Default: "bv[height<=1080][vcodec=vp9]+ba[acodec=opus]/bv[height<=1080]+ba/best"
-This attempts to get the best video up to 1080p
-(preferring VP9 codec) combined with the best audio
-(preferring Opus codec), falling back to other options
-if the preferred ones are not available.
+Default: "bv[height<=1440][vcodec=av1]+ba[acodec=aac]/bv[height<=1440][vcodec=hevc]+ba/best"
+
+Format Selection Rationale:
+The default prioritizes 1440p resolution for an optimal balance of
+quality and file size on modern Mac displays:
+
+• 1440p Resolution: Perfect for Retina displays on MacBook Air/Pro
+  and external monitors. Provides excellent visual quality without
+  the storage overhead of 4K content.
+
+• Codec Priority Order:
+  1. VP9 + AAC: Best balance of quality, file size, and compatibility for most Macs
+  2. VP9 + any audio: Maintains high resolution if AAC is not available
+  3. VP9 1080p + any audio: Good fallback if 1440p is not available
+  4. Best available: Ensures a playable download in all cases
+
+• Hardware Considerations:
+  - Apple Silicon Macs support hardware AV1 decoding
+  - IINA (recommended by JellyMac installer) provides native AV1 playback
+  - Optimal quality/file size ratio for local storage and streaming
+
+• Customization Examples:
+  - For 4K: "bv[height<=2160][vcodec=av1]+ba[acodec=aac]/best"
+  - For 1080p: "bv[height<=1080][vcodec=av1]+ba[acodec=aac]/best"
+  - For smallest files: "bv[height<=720][vcodec=av1]+ba[acodec=opus]/best"
+  - For Apple Silicon (M1/M2/M3): AV1 + Opus gives even
+    smaller files, but only use if all your devices support these codecs.
+  
 The square brackets [ and ] are used literally by
 yt-dlp and should not be escaped with backslashes in
 this configuration value. Proper quoting in the script

@@ -13,7 +13,7 @@
 #
 # Author: Eli Sher (Mtn_Man)
 # Version: v0.2.4
-# Last Updated: 2025-06-12
+# Last Updated: 2025-06-13
 # License: MIT Open Source
 
 # --- Set Terminal Title ---
@@ -452,7 +452,7 @@ graceful_shutdown_and_cleanup() {
     IFS='|'
     # shellcheck disable=SC2317
     local script_name_killed 
-    # shellcheck disable=SC2317
+    #shellcheck disable=SC2317
     set -f 
     # Bash 3.2 compatible: Use explicit string replacement then array assignment
     # shellcheck disable=SC2317
@@ -835,26 +835,26 @@ _check_clipboard_youtube() {
             https://www.youtube.com/watch\?v=*|https://youtu.be/*|https://www.youtube.com/playlist\?list=*)
                 # Check if this URL is already being processed or queued
                 if is_item_being_processed "$trimmed_cb"; then
-                    log_user_info "JellyMac" "YouTube URL already being processed: \'${trimmed_cb:0:70}...\'"
+                    log_user_info "JellyMac" "YouTube URL already being processed: '${trimmed_cb:0:70}...'"
                     return
                 fi
                 
                 # Check history BEFORE playing sound - early exit for duplicates
                 if is_youtube_url_in_history "$trimmed_cb"; then
                     log_user_info "JellyMac" "📋 YouTube URL found in history - skipping to prevent duplicate download"
-                    log_user_info "JellyMac" "URL: \'${trimmed_cb:0:70}...\'"
+                    log_user_info "JellyMac" "URL: '${trimmed_cb:0:70}...'"
                     return
                 fi
                 
                 # Check if this is a playlist URL
                 if [[ "$trimmed_cb" == *"playlist?list="* ]]; then
-                    log_user_info "JellyMac" "📋 Detected YouTube playlist: \'${trimmed_cb:0:70}...\'"
+                    log_user_info "JellyMac" "📋 Detected YouTube playlist: '${trimmed_cb:0:70}...'"
                     play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX"
                     log_user_info "JellyMac" "🚧 Playlist processing not yet implemented - coming soon!"
                     return
                 fi
                 
-                log_user_info "JellyMac" "📺 Detected YouTube URL: \'${trimmed_cb:0:70}...\'"
+                log_user_info "JellyMac" "📺 Detected YouTube URL: '${trimmed_cb:0:70}...'"
                 # Sound only plays for genuinely new URLs
                 play_sound_notification "input_detected" "$_WATCHER_LOG_PREFIX" 
                 
@@ -869,7 +869,7 @@ _check_clipboard_youtube() {
                 _YOUTUBE_PROCESSING_ACTIVE="true"
                 _ACTIVE_YOUTUBE_URL="$trimmed_cb"  # NEW: Track active URL
                 log_user_info "JellyMac" "🎬 Starting YouTube download..."
-                log_user_info "JellyMac" "💡 You may continue copying links - they\'ll be queued automatically!"
+                log_user_info "JellyMac" "💡 You may continue copying links - they'll be queued automatically!"
                 
                 # Fork background monitoring loop
                 {
@@ -903,9 +903,9 @@ _check_clipboard_youtube() {
                 _ACTIVE_YOUTUBE_PID=$!
 
                 if wait "$_ACTIVE_YOUTUBE_PID"; then
-                    log_user_info "JellyMac" "✅ YouTube download complete: \'${trimmed_cb:0:60}...\'"
+                    log_user_info "JellyMac" "✅ YouTube download complete: '${trimmed_cb:0:60}...'"
                 else
-                    log_warn_event "JellyMac" "❌ YouTube download failed: \'${trimmed_cb:0:60}...\'"
+                    log_warn_event "JellyMac" "❌ YouTube download failed: '${trimmed_cb:0:60}...'"
                     send_desktop_notification "JellyMac: YouTube Error" "Failed: ${trimmed_cb:0:60}..." "Basso"
                     # Consider if the "run yt-dlp -u" message is still relevant
                     log_warn_event "JellyMac" "Close JellyMac, run yt-dlp -u, restart JellyMac and try again."

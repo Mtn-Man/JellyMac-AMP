@@ -119,6 +119,16 @@ determine_media_category() {
     echo "$determined_category"
 }
 
+#==============================================================================
+# Function: _remove_bracketed_content
+# Description: Helper function to remove bracketed content from a string
+# Parameters: $1: input_string - String to remove brackets from
+# Returns: String with bracketed content removed
+#==============================================================================
+_remove_bracketed_content() {
+    local input="$1"
+    echo "$input" | sed -E 's/\[[^\]]*\]//g' | sed -E 's/[\[\]]//g'
+}
 
 #==============================================================================
 # Function: extract_and_sanitize_show_info
@@ -279,10 +289,6 @@ extract_and_sanitize_movie_info() {
     name_spaced=$(echo "$name_spaced" | sed -E 's/ - [a-zA-Z0-9]+$//g')
     log_debug_event "Media" "extract_and_sanitize_movie_info: After release group removal='$name_spaced'"
     
-    # Remove bracketed content like [700MB], [RARBG], etc.
-    name_spaced=$(echo "$name_spaced" | sed -E 's/\[[^\]]*\]//g')
-    log_debug_event "Media" "extract_and_sanitize_movie_info: After bracketed content removal='$name_spaced'"
-    
     # Clean multiple spaces that might result from removals
     name_spaced=$(echo "$name_spaced" | tr -s ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
     log_debug_event "Media" "extract_and_sanitize_movie_info: After space cleanup='$name_spaced'"
@@ -321,6 +327,8 @@ extract_and_sanitize_movie_info() {
             
             # Clean title (which is currently lowercase) and keep the year
             title_part=$(echo "$title_part" | sed -E 's/[[:space:]]*$//')
+            # Remove bracketed content AFTER year extraction
+            title_part=$(_remove_bracketed_content "$title_part")
             # Title casing will happen at the end. For now, sanitize.
             title_part=$(sanitize_filename "$title_part" "Unknown Movie") 
             
@@ -373,6 +381,8 @@ extract_and_sanitize_movie_info() {
     
     # STEP 4: Title case and sanitization
     title_part=$(echo "$title_part" | sed -E 's/^ +| +$//g') # Trim spaces first
+    # Remove bracketed content AFTER year extraction
+    title_part=$(_remove_bracketed_content "$title_part")
     title_part=$(echo "$title_part" | awk '{for(i=1;i<=NF;i++){$i=toupper(substr($i,1,1)) tolower(substr($i,2))}}1')
     title_part=$(sanitize_filename "$title_part" "Unknown Movie")
     
